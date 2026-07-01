@@ -1,0 +1,128 @@
+.container {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.card-container {
+  width: 700px;
+  height: 700px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  perspective: 1200px;
+}
+
+.card {
+  position: relative;
+  width: 400px;
+  height: 600px;
+  transform-style: preserve-3d;
+  will-change: transform;
+
+  &--resting {
+    transition: transform 0.65s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
+  &--active {
+    transition: transform 0.08s ease-out;
+  }
+}
+
+.card-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+
+  &--resting,
+  .card--resting & {
+    transition:
+      transform 0.65s cubic-bezier(0.34, 1.56, 0.64, 1),
+      opacity 0.65s ease,
+      filter 0.65s ease;
+  }
+
+  &--background {
+    border-radius: 12px;
+    overflow: hidden;
+  }
+
+  &--art {
+    img {
+      display: block;
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+    }
+  }
+
+  &--edge-glow {
+    border-radius: 8px;
+    background: linear-gradient(
+      135deg,
+      rgba(120, 180, 255, 0.5) 0%,
+      rgba(200, 120, 255, 0.3) 35%,
+      rgba(255, 200, 120, 0.4) 65%,
+      rgba(120, 255, 200, 0.3) 100%
+    );
+    mix-blend-mode: screen;
+    mask-image: linear-gradient(
+      to bottom,
+      transparent 5%,
+      black 20%,
+      black 80%,
+      transparent 95%
+    );
+    -webkit-mask-image: linear-gradient(
+      to bottom,
+      transparent 5%,
+      black 20%,
+      black 80%,
+      transparent 95%
+    );
+    opacity: 0.35;
+    transition: opacity 0.65s ease;
+  }
+
+  &--glare {
+    border-radius: 8px;
+    mix-blend-mode: screen;
+    opacity: 0.85;
+    transition:
+      transform 0.65s cubic-bezier(0.34, 1.56, 0.64, 1),
+      background 0.08s ease-out,
+      opacity 0.65s ease;
+  }
+}
+
+.card-bg-glow {
+  width: 100%;
+  height: 100%;
+  background: radial-gradient(
+    ellipse 70% 60% at 50% 55%,
+    rgba(80, 120, 200, 0.35) 0%,
+    rgba(40, 60, 120, 0.15) 50%,
+    transparent 75%
+  );
+  filter: blur(8px);
+}
+
+.card--resting .card-layer {
+  transition:
+    transform 0.65s cubic-bezier(0.34, 1.56, 0.64, 1),
+    opacity 0.65s ease,
+    filter 0.65s ease,
+    background 0.65s ease;
+}
+
+.card--active .card-layer--glare {
+  transition: background 0.08s ease-out;
+}
+
+.card--active .card-layer--art img {
+  transition:
+    transform 0.08s ease-out,
+    filter 0.08s ease-out;
+}

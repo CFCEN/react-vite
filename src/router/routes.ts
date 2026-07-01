@@ -1,10 +1,11 @@
-import { createElement } from 'react'
-import Layout from '@/layout'
-import { createBrowserRouter, Navigate, type RouteObject } from 'react-router'
-import userRoutes from './user'
-import homeRoutes from './home'
+import { createElement } from 'react';
+import Layout from '@/layout';
+import { createBrowserRouter, Navigate, type RouteObject } from 'react-router';
+import userRoutes from './user';
+import homeRoutes from './home';
+import cardRoutes from './card';
 
-import type { Route } from '@/router/types'
+import type { Route } from '@/router/types';
 /**
  * 根路由配置
  * children: 都是一级路由
@@ -13,10 +14,10 @@ import type { Route } from '@/router/types'
 export const layoutRoute: Route = {
   path: '/',
   Component: Layout,
-  children: [userRoutes, homeRoutes],
+  children: [userRoutes, homeRoutes, cardRoutes],
   name: 'layout',
   showInMenu: false,
-}
+};
 
 export const rootRoutes: Route[] = [
   {
@@ -26,6 +27,6 @@ export const rootRoutes: Route[] = [
     showInMenu: false,
   },
   layoutRoute,
-]
+];
 
-export default createBrowserRouter(rootRoutes as RouteObject[])
+export default createBrowserRouter(rootRoutes as RouteObject[]);

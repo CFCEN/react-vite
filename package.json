@@ -11,8 +11,12 @@
     "lint:fix": "eslint src/**/*.{js,ts,vue,jsx,tsx} --fix"
   },
   "dependencies": {
-    "@ant-design/icons": "^6.2.5",
+    "@ant-design/icons": "6.x",
+    "@codemirror/lang-markdown": "^6.5.0",
+    "@codemirror/language-data": "^6.5.2",
     "@react-router/dev": "^8.0.0",
+    "@uiw/react-codemirror": "^4.25.10",
+    "@uiw/react-markdown-preview": "^5.2.1",
     "antd": "^6.4.4",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
@@ -33,6 +37,7 @@
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.2",
     "globals": "^17.6.0",
+    "less": "^4.6.7",
     "typescript": "~6.0.2",
     "typescript-eslint": "^8.59.2",
     "vite": "^8.0.12"

@@ -1,9 +1,13 @@
-import Home from '@/pages/home'
-import KanbanBoard from '@/pages/home/kanhban'
-import { DashboardOutlined, HomeOutlined, InfoOutlined } from '@ant-design/icons'
-import type { Route } from '@/router/types'
-import { createElement } from 'react'
-import { Navigate } from 'react-router'
+import Home from '@/pages/home';
+import KanbanBoard from '@/pages/home/kanhban';
+import {
+  DashboardOutlined,
+  HomeOutlined,
+  InfoOutlined,
+} from '@ant-design/icons';
+import type { Route } from '@/router/types';
+import { createElement } from 'react';
+import { Navigate } from 'react-router';
 
 const childrenRoutes = [
   {
@@ -27,7 +31,7 @@ const childrenRoutes = [
     name: '看板',
     icon: createElement(DashboardOutlined),
   },
-]
+];
 
 const routes: Route = {
   name: '主页',
@@ -35,6 +39,6 @@ const routes: Route = {
   key: 1,
   path: '/home',
   children: childrenRoutes,
-}
+};
 
-export default routes
+export default routes;
