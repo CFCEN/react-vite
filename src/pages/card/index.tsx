@@ -78,7 +78,7 @@ const Card = () => {
 
   const edgeGlowStyle = {
     transform: `translateZ(56px) translateX(${tilt.rotateY * 1.4}px) translateY(${tilt.rotateX * -1.4}px)`,
-    opacity: 0.35 + tilt.tiltStrength * 0.45,
+    opacity: 0.45 + tilt.tiltStrength * 0.4,
   };
 
   return (
