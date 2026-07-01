@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import fufuImg from '../../assets/img/fufu.png';
+import fufuImg from '@/assets/img/fufu.png';
 import './index.less';
 
 interface CardTilt {
@@ -92,6 +92,8 @@ const Card = () => {
           className={`card ${tilt.isHovering ? 'card--active' : 'card--resting'}`}
           style={{ transform: cardTransform }}
         >
+          {/* 背景层 translateZ(-32px)：退后的蓝色径向光晕，视差最慢，制造景深 */}
+          {/* 背景层, 肉眼很难直接看出来，但是是整个卡片的基础，用于制造景深，让卡片看起来有层次感 */}
           <div
             className="card-layer card-layer--background"
             style={backgroundParallax}
@@ -99,15 +101,19 @@ const Card = () => {
             <div className="card-bg-glow" />
           </div>
 
+          {/* 人物层 translateZ(48px)：PNG 立绘主体，drop-shadow 按 alpha 轮廓投影 */}
           <div className="card-layer card-layer--art" style={artLayerStyle}>
             <img src={fufuImg} alt="fufu" style={{ filter: artDropShadow }} />
           </div>
 
+          {/* 边缘辉光层 translateZ(56px)：四边镭射 + 彩虹渐变，倾斜越亮 */}
+          {/* 阴影层 translateZ(64px)：仿 PS 内阴影，提供渐变厚度, 用于显示卡片边框，提升层次感 */}
           <div
             className="card-layer card-layer--edge-glow"
             style={edgeGlowStyle}
           />
 
+          {/* 高光层 translateZ(72px)：最靠前，鼠标跟随的白色反光 */}
           <div className="card-layer card-layer--glare" style={glareStyle} />
         </div>
       </div>
