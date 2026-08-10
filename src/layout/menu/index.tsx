@@ -1,12 +1,16 @@
-import { Menu as AntMenu } from 'antd';
+import { Menu as AntMenu, Tooltip } from 'antd';
 import type { MenuProps } from 'antd';
 import { layoutRoute } from '@/router/routes';
 import type { Route } from '@/router/types';
 import { useLocation, useNavigate, matchPath } from 'react-router';
 import { useEffect, useMemo, useState } from 'react';
+import { useUIStore } from '@/stores/uiStore';
 import './index.less';
 
 type AntdMenuItems = NonNullable<MenuProps['items']>;
+
+/** Stable empty fallback — avoids `?? []` creating a new array identity each render. */
+const EMPTY_ROUTES: Route[] = [];
 
 interface ActiveMenuState {
   selectedKey?: string;
@@ -14,52 +18,76 @@ interface ActiveMenuState {
   matchedPathLength: number;
 }
 
-const shouldShowInMenu = (route: Route) => route.showInMenu !== false;
+const shouldShowInMenu = (route: Route) =>
+  route.showInMenu !== false && route.meta?.hideInMenu !== true;
 
-const getMenuKey = (route: Route, index: number, parentKey: string) => {
+const getMenuKey = (route: Route, index: number, parentKey: string, parentPath?: string) => {
   const routeKey = route.key ?? index;
 
+  // Index route shown in menu → use parent path for navigation
+  if (route.index && shouldShowInMenu(route) && parentPath) {
+    return parentPath;
+  }
+
   if (route.children?.length) {
-    // 有子路由的父级菜单直接用 path 作为 key，保证点击时可以导航
     return route.path || `group-${parentKey}-${routeKey}`;
   }
 
-  return route.path || `route-${parentKey}-${routeKey}`;
+  return route.path || route.meta?.parentKey || `route-${parentKey}-${routeKey}`;
 };
 
 const sortRoutes = (routes: Route[]) => {
   return [...routes].sort((a, b) => (a.key ?? 0) - (b.key ?? 0));
 };
 
-/**
- * 检查路由是否匹配当前路径，返回匹配长度（-1 表示不匹配）
- * 使用 react-router 的 matchPath 支持参数化路径（:id 等）
- */
-const getRouteMatchLength = (route: Route, pathname: string, parentPath?: string): number => {
+const getRouteMatchLength = (
+  route: Route,
+  pathname: string,
+  parentPath?: string,
+): number => {
   if (route.index) {
-    // index 路由匹配父级路径
     return parentPath && pathname === parentPath ? parentPath.length : -1;
   }
   if (route.path) {
-    const matched = matchPath(route.path, pathname);
-    return matched ? route.path.length : -1;
+    const matched = matchPath({ path: route.path, end: true }, pathname);
+    if (matched) return route.path.length;
+    // Prefix match for detail routes highlighting parent menu item
+    const parentKey = route.meta?.parentKey;
+    if (parentKey && (pathname === parentKey || pathname.startsWith(`${parentKey}/`))) {
+      return parentKey.length;
+    }
   }
   return -1;
 };
 
-const buildMenuItems = (routes: Route[], parentKey: string): AntdMenuItems => {
+const buildMenuItems = (
+  routes: Route[],
+  parentKey: string,
+  parentPath?: string,
+  collapsed?: boolean,
+): AntdMenuItems => {
   return sortRoutes(routes)
     .filter(shouldShowInMenu)
     .map<AntdMenuItems[number]>((route, index) => {
-      const key = getMenuKey(route, index, parentKey);
+      const key = getMenuKey(route, index, parentKey, parentPath);
       const children = route.children?.length
-        ? buildMenuItems(route.children, key)
+        ? buildMenuItems(route.children, key, route.path, collapsed)
         : undefined;
+
+      const labelNode =
+        collapsed && !children?.length ? (
+          <Tooltip title={route.name} placement="right">
+            <span>{route.name}</span>
+          </Tooltip>
+        ) : (
+          route.name
+        );
 
       const baseItem = {
         key,
         icon: route.icon,
-        label: route.name,
+        label: labelNode,
+        title: route.name, // native tooltip when collapsed via antd
       };
 
       return children?.length ? { ...baseItem, children } : baseItem;
@@ -80,8 +108,7 @@ const findActiveMenuState = (
   };
 
   sortRoutes(routes).forEach((route, index) => {
-    const key = getMenuKey(route, index, parentKey);
-    // 当前层级路由的 path；有子路由时作为子级的 parentPath
+    const key = getMenuKey(route, index, parentKey, parentPath);
     const currentParentPath = route.path || parentPath;
 
     if (route.children?.length) {
@@ -95,14 +122,53 @@ const findActiveMenuState = (
       if (childMatch.matchedPathLength > bestMatch.matchedPathLength) {
         bestMatch = childMatch;
       }
+
+      // Detail route under this parent: highlight meta.parentKey leaf if present
+      const detailChild = route.children.find(
+        (c) =>
+          c.meta?.parentKey &&
+          (pathname === c.meta.parentKey ||
+            pathname.startsWith(`${c.meta.parentKey}/`) ||
+            (c.path && matchPath({ path: c.path, end: true }, pathname))),
+      );
+      if (detailChild?.meta?.parentKey) {
+        const parentMenuKey = detailChild.meta.parentKey;
+        const len = parentMenuKey.length;
+        if (len >= bestMatch.matchedPathLength) {
+          bestMatch = {
+            selectedKey: parentMenuKey,
+            openKeys: [...ancestorKeys, key],
+            matchedPathLength: len,
+          };
+        }
+      }
       return;
     }
 
-    // 叶子路由匹配（支持 index 路由和参数化路径）
+    // Hidden detail routes: highlight the parent menu leaf, never the :id path itself
+    if (
+      route.meta?.parentKey &&
+      route.path &&
+      matchPath({ path: route.path, end: true }, pathname)
+    ) {
+      const len = route.path.length;
+      if (len > bestMatch.matchedPathLength) {
+        bestMatch = {
+          selectedKey: route.meta.parentKey,
+          openKeys: ancestorKeys,
+          matchedPathLength: len,
+        };
+      }
+      return;
+    }
+
     const matchLen = getRouteMatchLength(route, pathname, parentPath);
     if (matchLen > bestMatch.matchedPathLength) {
+      // For index menu items, selected key is parent path
+      const selectedKey =
+        route.index && shouldShowInMenu(route) && parentPath ? parentPath : key;
       bestMatch = {
-        selectedKey: key,
+        selectedKey,
         openKeys: ancestorKeys,
         matchedPathLength: matchLen,
       };
@@ -115,31 +181,43 @@ const findActiveMenuState = (
 const Menu: React.FC = () => {
   const navigate = useNavigate();
   const { pathname } = useLocation();
-  const menuRoutes = layoutRoute.children || [];
-
+  const collapsed = useUIStore((s) => s.sidebarCollapsed);
   const menuItems = useMemo(() => {
-    return buildMenuItems(menuRoutes, 'root');
-  }, [menuRoutes]);
+    return buildMenuItems(
+      layoutRoute.children ?? EMPTY_ROUTES,
+      'root',
+      undefined,
+      collapsed,
+    );
+  }, [collapsed]);
 
   const activeMenuState = useMemo(() => {
-    return findActiveMenuState(menuRoutes, pathname, 'root');
-  }, [menuRoutes, pathname]);
+    return findActiveMenuState(
+      layoutRoute.children ?? EMPTY_ROUTES,
+      pathname,
+      'root',
+    );
+  }, [pathname]);
 
   const [openKeys, setOpenKeys] = useState<string[]>(activeMenuState.openKeys);
 
   useEffect(() => {
-    setOpenKeys(activeMenuState.openKeys);
-  }, [activeMenuState.openKeys]);
+    if (!collapsed) {
+      setOpenKeys((prev) => {
+        const merged = new Set([...prev, ...activeMenuState.openKeys]);
+        return Array.from(merged);
+      });
+    }
+  }, [activeMenuState.openKeys, collapsed]);
 
   return (
     <AntMenu
-      theme="light"
       mode="inline"
-      inlineIndent={0}
-      selectedKeys={
-        activeMenuState.selectedKey ? [activeMenuState.selectedKey] : []
-      }
-      openKeys={openKeys}
+      inlineCollapsed={collapsed}
+      inlineIndent={12}
+      selectable
+      selectedKeys={activeMenuState.selectedKey ? [activeMenuState.selectedKey] : []}
+      openKeys={collapsed ? [] : openKeys}
       onOpenChange={(keys) => {
         setOpenKeys(keys as string[]);
       }}
@@ -150,8 +228,8 @@ const Menu: React.FC = () => {
         }
       }}
       className="menu-custom"
-      style={{ height: 'calc(100vh - 100px)' }}
       items={menuItems}
+      tabIndex={0}
     />
   );
 };

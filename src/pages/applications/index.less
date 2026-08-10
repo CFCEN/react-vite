@@ -1,1 +1,170 @@
-// applications shared styles
+.applications-page {
+  .app-muted {
+    color: var(--ldw-text-tertiary);
+  }
+
+  .app-name-link {
+    color: var(--ldw-color-primary);
+    text-decoration: none;
+
+    &:hover {
+      text-decoration: underline;
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--ldw-color-primary);
+      outline-offset: 2px;
+      border-radius: var(--ldw-radius-sm);
+    }
+  }
+
+  .app-cmd-tag {
+    max-width: 140px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    vertical-align: middle;
+  }
+
+  .app-cmd-list {
+    max-width: 100%;
+  }
+
+  .app-status-filter {
+    min-width: 140px;
+  }
+
+  .app-row-actions {
+    .ant-btn {
+      cursor: pointer;
+    }
+  }
+
+  .app-menu-cmd {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    max-width: 320px;
+
+    &__code {
+      color: var(--ldw-text-secondary);
+      font-size: 12px;
+      font-family: var(--ldw-font-mono);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+  }
+}
+
+.applications-detail {
+  .app-detail-desc {
+    margin-top: var(--ldw-space-sm);
+  }
+
+  .app-cmd-stack {
+    width: 100%;
+  }
+
+  .app-cmd-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: var(--ldw-space-sm);
+    max-width: 100%;
+  }
+
+  .app-cmd-code {
+    font-family: var(--ldw-font-mono);
+    font-size: 12px;
+    color: var(--ldw-text);
+    word-break: break-all;
+  }
+
+  .app-env-pre {
+    margin: 0;
+    font-family: var(--ldw-font-mono);
+    font-size: 12px;
+    max-height: 160px;
+    overflow: auto;
+    color: var(--ldw-text);
+    background: var(--ldw-fill-secondary);
+    border: 1px solid var(--ldw-border);
+    border-radius: var(--ldw-radius-md);
+    padding: var(--ldw-space-sm);
+  }
+}
+
+.applications-form {
+  .app-form-card {
+    max-width: 720px;
+    background: var(--ldw-bg-container);
+    border: 1px solid var(--ldw-border);
+    border-radius: var(--ldw-radius-lg);
+    padding: var(--ldw-space-lg);
+  }
+
+  .app-commands-editor {
+    display: flex;
+    flex-direction: column;
+    gap: var(--ldw-space-sm);
+    padding: var(--ldw-space-md);
+    background: var(--ldw-fill-secondary);
+    border-radius: var(--ldw-radius-md);
+    border: 1px dashed var(--ldw-border);
+
+    &__row {
+      display: flex;
+      width: 100%;
+      align-items: flex-start;
+    }
+
+    &__name {
+      margin-bottom: 0;
+      width: 120px;
+      flex-shrink: 0;
+    }
+
+    &__command {
+      margin-bottom: 0;
+      flex: 1;
+      min-width: 0;
+    }
+
+    &__remove {
+      flex-shrink: 0;
+    }
+  }
+
+  .app-env-input {
+    font-family: var(--ldw-font-mono);
+  }
+}
+
+@media (max-width: 768px) {
+  .applications-form {
+    .app-form-card {
+      padding: var(--ldw-space-md);
+    }
+
+    .app-commands-editor {
+      &__row {
+        flex-wrap: wrap;
+      }
+
+      &__name {
+        width: 100%;
+      }
+
+      &__command {
+        width: 100%;
+      }
+    }
+  }
+
+  .applications-page {
+    .app-status-filter {
+      min-width: 120px;
+      width: 100%;
+    }
+  }
+}

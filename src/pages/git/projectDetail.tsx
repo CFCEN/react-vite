@@ -1,16 +1,18 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useParams, useNavigate } from 'react-router';
+import './git.less';
+
+import { useMemo, useState, type ReactNode } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useNavigate, useParams, Link } from 'react-router';
 import {
-  Descriptions,
+  App,
   Button,
-  Spin,
-  Tag,
   Card,
-  Space,
-  Typography,
+  Descriptions,
   Form,
   Input,
-  App,
+  Space,
+  Tag,
+  Typography,
 } from 'antd';
 import {
   ArrowLeftOutlined,
@@ -19,13 +21,20 @@ import {
   CheckOutlined,
   ReloadOutlined,
 } from '@ant-design/icons';
-import { useState } from 'react';
 import { gitApi } from '@/api/gitApi';
-import { getGitStatusInfo } from '@/utils/format';
-import { shortenPath } from '@/utils/path';
-import PageContainer from '@/components/PageContainer';
+import { ApiRequestError } from '@/api/client';
+import { formatGitLastCommit } from '@/types/git';
+import {
+  PageContainer,
+  StatusTag,
+  PathText,
+  CopyableText,
+  EmptyState,
+  LoadingSkeleton,
+  ErrorState,
+} from '@/components';
 
-const { Title } = Typography;
+const { Text } = Typography;
 
 const GitProjectDetail = () => {
   const { id } = useParams<{ id: string }>();
@@ -36,47 +45,99 @@ const GitProjectDetail = () => {
   const [editingContext, setEditingContext] = useState(false);
   const [contextForm] = Form.useForm();
 
-  const { data, isLoading, isFetching, refetch } = useQuery({
-    queryKey: ['gitProject', id],
-    queryFn: () => gitApi.getProjectById(Number(id)),
-    enabled: !!id,
+  const projectId = Number(id);
+  const isValidId = Number.isFinite(projectId) && projectId > 0 && String(projectId) === String(id);
+
+  const {
+    data,
+    isLoading,
+    isFetching,
+    isError,
+    error,
+    refetch,
+  } = useQuery({
+    queryKey: ['gitProject', projectId],
+    queryFn: () => gitApi.getProjectById(projectId, { silent: true }),
+    enabled: isValidId,
+    retry: false,
   });
 
   const updateMutation = useMutation({
     mutationFn: (values: Record<string, unknown>) =>
-      gitApi.updateProject(Number(id), values),
+      gitApi.updateProject(projectId, values),
     onSuccess: () => {
-      message.success('上下文已更新');
+      message.success('AI context updated');
       setEditingContext(false);
-      queryClient.invalidateQueries({ queryKey: ['gitProject', id] });
+      queryClient.invalidateQueries({ queryKey: ['gitProject', projectId] });
+      queryClient.invalidateQueries({ queryKey: ['gitProjects'] });
     },
   });
 
-  const handleStartEditContext = () => {
-    const project = data?.data;
-    if (project) {
-      contextForm.setFieldsValue({
-        ragPath: project.ragPath || '',
-        indexPath: project.indexPath || '',
-      });
-    }
-    setEditingContext(true);
-  };
+  const notFound = useMemo(() => {
+    if (!isValidId) return true;
+    if (!isError) return false;
+    return (
+      error instanceof ApiRequestError &&
+      (error.status === 404 ||
+        error.code === 'NOT_FOUND' ||
+        error.code === 'GIT_PROJECT_NOT_FOUND')
+    );
+  }, [isValidId, isError, error]);
 
-  const handleCancelEditContext = () => {
-    setEditingContext(false);
-  };
-
-  const handleSaveContext = () => {
-    contextForm.validateFields().then((values) => {
-      updateMutation.mutate(values);
-    });
-  };
+  if (!isValidId || notFound) {
+    return (
+      <PageContainer
+        title="Project not found"
+        extra={
+          <Button
+            icon={<ArrowLeftOutlined />}
+            className="ldw-clickable"
+            onClick={() => navigate('/git/projects')}
+          >
+            Back to Projects
+          </Button>
+        }
+      >
+        <EmptyState
+          preset="search"
+          title="Project not found"
+          description={
+            isValidId
+              ? `No project with id ${id} exists in the registry.`
+              : `"${id}" is not a valid project id.`
+          }
+          action={{
+            text: 'Back to Projects',
+            onClick: () => navigate('/git/projects'),
+          }}
+        />
+      </PageContainer>
+    );
+  }
 
   if (isLoading) {
     return (
-      <PageContainer title="Loading...">
-        <div style={{ textAlign: 'center', padding: 100 }}><Spin size="large" /></div>
+      <PageContainer title="Loading…">
+        <LoadingSkeleton variant="detail" />
+      </PageContainer>
+    );
+  }
+
+  if (isError) {
+    return (
+      <PageContainer
+        title="Project"
+        extra={
+          <Button
+            icon={<ArrowLeftOutlined />}
+            className="ldw-clickable"
+            onClick={() => navigate('/git/projects')}
+          >
+            Back
+          </Button>
+        }
+      >
+        <ErrorState error={error as Error} onRetry={() => refetch()} />
       </PageContainer>
     );
   }
@@ -84,64 +145,106 @@ const GitProjectDetail = () => {
   const project = data?.data;
   if (!project) {
     return (
-      <PageContainer title="Not Found">
-        <p>项目不存在</p>
-        <Button onClick={() => navigate('/git/projects')}>返回列表</Button>
+      <PageContainer title="Project not found">
+        <EmptyState
+          preset="search"
+          title="Project not found"
+          action={{
+            text: 'Back to Projects',
+            onClick: () => navigate('/git/projects'),
+          }}
+        />
       </PageContainer>
     );
   }
 
-  const statusInfo = getGitStatusInfo(project.status);
+  const lastCommitText = formatGitLastCommit(project.lastCommit);
+
+  const handleStartEditContext = () => {
+    contextForm.setFieldsValue({
+      ragPath: project.ragPath || '',
+      indexPath: project.indexPath || '',
+    });
+    setEditingContext(true);
+  };
 
   return (
     <PageContainer
       title={project.name}
+      subTitle={
+        project.groupName ? (
+          <Link to={`/git/groups/${project.groupId}`} className="ldw-clickable">
+            {project.groupName}
+          </Link>
+        ) : (
+          'Ungrouped'
+        )
+      }
       extra={
-        <Space>
-          <Button icon={<ReloadOutlined />} onClick={() => refetch()} loading={isFetching}>
-            刷新
-          </Button>
+        <Space wrap>
+          <TooltipButton
+            title="Refresh"
+            icon={<ReloadOutlined />}
+            onClick={() => refetch()}
+            loading={isFetching}
+          />
           <Button
             icon={<ArrowLeftOutlined />}
+            className="ldw-clickable"
             onClick={() => navigate('/git/projects')}
           >
-            返回
+            Back
           </Button>
         </Space>
       }
     >
-      <Space direction="vertical" size="middle" style={{ width: '100%' }}>
-        {/* Overview */}
-        <Card title="Overview">
+      <Space direction="vertical" size="middle" className="git-detail-stack">
+        <Card title="Overview" size="small">
           <Descriptions bordered size="small" column={{ xs: 1, sm: 2 }}>
             <Descriptions.Item label="Name">{project.name}</Descriptions.Item>
             <Descriptions.Item label="Path">
-              <code>{project.path}</code>
+              <PathText path={project.path} />
             </Descriptions.Item>
             <Descriptions.Item label="Branch">
-              <Tag>{project.branch || '—'}</Tag>
+              {project.branch ? <Tag>{project.branch}</Tag> : '—'}
             </Descriptions.Item>
             <Descriptions.Item label="Remote">
-              {project.remote || '—'}
-            </Descriptions.Item>
-            <Descriptions.Item label="Status">
-              <Tag color={statusInfo.color}>{statusInfo.label}</Tag>
-            </Descriptions.Item>
-            <Descriptions.Item label="Last Commit">
-              <code style={{ fontSize: 12 }}>{project.lastCommit || '—'}</code>
-            </Descriptions.Item>
-            <Descriptions.Item label="Group">
-              {project.groupName ? (
-                <Tag color="purple">{project.groupName}</Tag>
+              {project.remote ? (
+                <CopyableText text={project.remote} ellipsis mono />
               ) : (
                 '—'
               )}
             </Descriptions.Item>
+            <Descriptions.Item label="Status">
+              <StatusTag status={project.status || 'UNKNOWN'} kind="git" />
+            </Descriptions.Item>
+            <Descriptions.Item label="Last Commit">
+              {lastCommitText ? (
+                <CopyableText text={lastCommitText} ellipsis mono />
+              ) : (
+                '—'
+              )}
+            </Descriptions.Item>
+            <Descriptions.Item label="Group">
+              {project.groupName ? (
+                <Link
+                  to={`/git/groups/${project.groupId}`}
+                  className="ldw-clickable"
+                >
+                  <Tag color="cyan">{project.groupName}</Tag>
+                </Link>
+              ) : (
+                '—'
+              )}
+            </Descriptions.Item>
+            <Descriptions.Item label="ID">
+              <CopyableText text={String(project.id)} mono />
+            </Descriptions.Item>
           </Descriptions>
         </Card>
 
-        {/* AI Context */}
         <Card
+          size="small"
           title="AI Context"
           extra={
             editingContext ? (
@@ -150,26 +253,33 @@ const GitProjectDetail = () => {
                   size="small"
                   type="primary"
                   icon={<CheckOutlined />}
-                  onClick={handleSaveContext}
+                  className="ldw-clickable"
+                  onClick={() =>
+                    contextForm.validateFields().then((values) => {
+                      updateMutation.mutate(values);
+                    })
+                  }
                   loading={updateMutation.isPending}
                 >
-                  保存
+                  Save
                 </Button>
                 <Button
                   size="small"
                   icon={<CloseOutlined />}
-                  onClick={handleCancelEditContext}
+                  className="ldw-clickable"
+                  onClick={() => setEditingContext(false)}
                 >
-                  取消
+                  Cancel
                 </Button>
               </Space>
             ) : (
               <Button
                 size="small"
                 icon={<EditOutlined />}
+                className="ldw-clickable"
                 onClick={handleStartEditContext}
               >
-                编辑
+                Edit
               </Button>
             )
           }
@@ -177,25 +287,30 @@ const GitProjectDetail = () => {
           {editingContext ? (
             <Form form={contextForm} layout="vertical" size="small">
               <Form.Item name="ragPath" label="RAG Path">
-                <Input placeholder="RAG 目录路径" />
+                <Input placeholder="RAG directory path" />
               </Form.Item>
               <Form.Item name="indexPath" label="Index Path">
-                <Input placeholder="Index 目录路径" />
+                <Input placeholder="Index directory path" />
               </Form.Item>
             </Form>
           ) : (
             <>
               <Descriptions bordered size="small" column={1}>
                 <Descriptions.Item label="RAG Path">
-                  {project.ragPath ? <code>{shortenPath(project.ragPath)}</code> : '—'}
+                  {project.ragPath ? <PathText path={project.ragPath} /> : '—'}
                 </Descriptions.Item>
                 <Descriptions.Item label="Index Path">
-                  {project.indexPath ? <code>{shortenPath(project.indexPath)}</code> : '—'}
+                  {project.indexPath ? (
+                    <PathText path={project.indexPath} />
+                  ) : (
+                    '—'
+                  )}
                 </Descriptions.Item>
               </Descriptions>
-              <div style={{ marginTop: 12, color: '#8c8c8c', fontSize: 13 }}>
-                此区域为后续 AI 功能预留。RAG 和 Index 目录服务于项目所在的 Group 级别的代码理解和检索能力。
-              </div>
+              <Text type="secondary" className="git-detail-hint">
+                Reserved for AI features. RAG / Index directories are typically
+                managed at the group level.
+              </Text>
             </>
           )}
         </Card>
@@ -203,5 +318,28 @@ const GitProjectDetail = () => {
     </PageContainer>
   );
 };
+
+function TooltipButton({
+  title,
+  icon,
+  onClick,
+  loading,
+}: {
+  title: string;
+  icon: ReactNode;
+  onClick: () => void;
+  loading?: boolean;
+}) {
+  return (
+    <Button
+      icon={icon}
+      className="ldw-clickable"
+      onClick={onClick}
+      loading={loading}
+      aria-label={title}
+      title={title}
+    />
+  );
+}
 
 export default GitProjectDetail;

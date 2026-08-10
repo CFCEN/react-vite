@@ -1,4 +1,150 @@
-body {
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+
+/* ── Design tokens (fallback before JS hydrate) ── */
+:root,
+[data-theme='light'] {
+  --ldw-color-primary: #0f766e;
+  --ldw-color-success: #16a34a;
+  --ldw-color-warning: #d97706;
+  --ldw-color-error: #dc2626;
+  --ldw-color-info: #0284c7;
+  --ldw-bg-base: #f8fafc;
+  --ldw-bg-container: #ffffff;
+  --ldw-bg-elevated: #ffffff;
+  --ldw-bg-layout: #f1f5f9;
+  --ldw-bg-code: #0f172a;
+  --ldw-text-code: #e2e8f0;
+  --ldw-text: #0f172a;
+  --ldw-text-secondary: #475569;
+  --ldw-text-tertiary: #64748b;
+  --ldw-text-quaternary: #94a3b8;
+  --ldw-border: #e2e8f0;
+  --ldw-border-secondary: #f1f5f9;
+  --ldw-fill-secondary: #f1f5f9;
+  --ldw-shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.05);
+  --ldw-shadow-md: 0 4px 12px rgba(15, 23, 42, 0.08);
+  --ldw-radius-sm: 4px;
+  --ldw-radius-md: 6px;
+  --ldw-radius-lg: 8px;
+  --ldw-space-xs: 4px;
+  --ldw-space-sm: 8px;
+  --ldw-space-md: 12px;
+  --ldw-space-lg: 16px;
+  --ldw-space-xl: 24px;
+  --ldw-space-xxl: 32px;
+  --ldw-font-sans: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --ldw-font-mono: 'JetBrains Mono', 'SF Mono', 'Fira Code', ui-monospace, monospace;
+  --ldw-motion-fast: 150ms;
+  --ldw-motion-base: 200ms;
+  --ldw-motion-slow: 300ms;
+  --ldw-easing: cubic-bezier(0.4, 0, 0.2, 1);
+  --ldw-sider-width: 220px;
+  --ldw-header-height: 48px;
+  --ldw-content-max-width: 1440px;
+}
+
+[data-theme='dark'] {
+  --ldw-color-primary: #2dd4bf;
+  --ldw-color-success: #22c55e;
+  --ldw-color-warning: #fbbf24;
+  --ldw-color-error: #f87171;
+  --ldw-color-info: #38bdf8;
+  --ldw-bg-base: #0f172a;
+  --ldw-bg-container: #1e293b;
+  --ldw-bg-elevated: #1e293b;
+  --ldw-bg-layout: #0f172a;
+  --ldw-bg-code: #020617;
+  --ldw-text-code: #e2e8f0;
+  --ldw-text: #f8fafc;
+  --ldw-text-secondary: #94a3b8;
+  --ldw-text-tertiary: #64748b;
+  --ldw-text-quaternary: #475569;
+  --ldw-border: #334155;
+  --ldw-border-secondary: #1e293b;
+  --ldw-fill-secondary: #334155;
+  --ldw-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --ldw-shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
   margin: 0;
   padding: 0;
+}
+
+body {
+  font-family: var(--ldw-font-sans);
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--ldw-text);
+  background: var(--ldw-bg-layout);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+code,
+pre,
+.mono,
+.ldw-mono {
+  font-family: var(--ldw-font-mono);
+}
+
+a {
+  color: var(--ldw-color-primary);
+  transition: color var(--ldw-motion-fast) var(--ldw-easing);
+}
+
+/* Focus visibility for keyboard nav */
+:focus-visible {
+  outline: 2px solid var(--ldw-color-primary);
+  outline-offset: 2px;
+}
+
+/* Clickable affordance helper */
+.ldw-clickable {
+  cursor: pointer;
+  transition:
+    color var(--ldw-motion-fast) var(--ldw-easing),
+    background-color var(--ldw-motion-fast) var(--ldw-easing),
+    border-color var(--ldw-motion-fast) var(--ldw-easing),
+    box-shadow var(--ldw-motion-fast) var(--ldw-easing);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Scrollbar — subtle, theme-aware */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--ldw-border) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: var(--ldw-border);
+  border-radius: 4px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--ldw-text-quaternary);
 }

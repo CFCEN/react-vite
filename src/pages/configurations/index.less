@@ -1,1 +1,97 @@
-// configuration pages shared styles (if needed)
+.config-detail-page {
+  .page-content {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+}
+
+.config-detail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ldw-space-md);
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+}
+
+.config-meta {
+  flex-shrink: 0;
+  background: var(--ldw-bg-container);
+  border: 1px solid var(--ldw-border);
+  border-radius: var(--ldw-radius-md);
+  padding: var(--ldw-space-md);
+
+  &__header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--ldw-space-md);
+    margin-bottom: var(--ldw-space-md);
+  }
+
+  &__title {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--ldw-text);
+  }
+
+  &__form {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0 var(--ldw-space-md);
+
+    @media (max-width: 768px) {
+      grid-template-columns: 1fr;
+    }
+  }
+}
+
+.config-lang-note,
+.config-dirty-note {
+  flex-shrink: 0;
+}
+
+.config-editor {
+  flex: 1;
+  min-height: 360px;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--ldw-border);
+  border-radius: var(--ldw-radius-md);
+  overflow: hidden;
+  background: var(--ldw-bg-container);
+  position: relative;
+
+  &__cm {
+    position: absolute;
+    inset: 0;
+    font-family: var(--ldw-font-mono);
+
+    .cm-editor {
+      height: 100%;
+      font-family: var(--ldw-font-mono);
+    }
+
+    .cm-scroller {
+      font-family: var(--ldw-font-mono) !important;
+      overflow: auto !important;
+    }
+  }
+
+  &__hint {
+    display: none;
+  }
+}
+
+.config-editor-hint {
+  flex-shrink: 0;
+  font-size: 12px;
+}
+
+@media (max-width: 768px) {
+  .config-editor {
+    min-height: 280px;
+  }
+}

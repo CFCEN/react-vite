@@ -1,7 +1,7 @@
-/** Index 状态 */
+/** Index status */
 export type IndexStatus = 'NOT_INDEXED' | 'INDEXING' | 'READY' | 'FAILED' | 'OUTDATED';
 
-/** 项目上下文 */
+/** Project context */
 export interface ProjectContext {
   id: number;
   groupId: number;
@@ -12,9 +12,11 @@ export interface ProjectContext {
   lastIndexedAt: string | null;
   createdAt: string;
   updatedAt: string;
+  /** Present when backend joins group name; otherwise filled client-side */
+  groupName?: string;
 }
 
-/** 工作区概览 */
+/** Workspace overview */
 export interface WorkspaceOverview {
   root: string;
   ragDirs: string[];
@@ -22,21 +24,21 @@ export interface WorkspaceOverview {
   contexts: ProjectContext[];
 }
 
-/** 创建 Context 请求 */
+/** Create Context request */
 export interface CreateContextRequest {
   name: string;
 }
 
-/** 修改 Context 请求 */
+/** Update Context request */
 export interface UpdateContextRequest {
   name?: string;
   ragPath?: string;
   indexPath?: string;
 }
 
-// ---------- Context 文档文件 ----------
+// ---------- Context document files ----------
 
-/** Context 目录下的文件项 */
+/** File entry under a context directory */
 export interface ContextFile {
   name: string;
   path: string;
@@ -45,7 +47,7 @@ export interface ContextFile {
   modifiedAt: string;
 }
 
-/** 文件内容 */
+/** File content payload */
 export interface ContextFileContent {
   path: string;
   content: string;
@@ -53,14 +55,14 @@ export interface ContextFileContent {
   modifiedAt: string;
 }
 
-/** 创建文件请求 */
+/** Create file request */
 export interface CreateContextFileRequest {
   type: 'rag' | 'index';
   fileName: string;
   content: string;
 }
 
-/** 修改文件请求 */
+/** Update file request */
 export interface UpdateContextFileRequest {
   type: 'rag' | 'index';
   fileName: string;

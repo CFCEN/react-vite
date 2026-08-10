@@ -1,4 +1,4 @@
-/** 应用状态 */
+/** Process lifecycle status from backend */
 export type ApplicationStatus =
   | 'STOPPED'
   | 'STARTING'
@@ -7,37 +7,45 @@ export type ApplicationStatus =
   | 'FAILED'
   | 'UNKNOWN';
 
-/** 命令定义（支持多命令） */
+/** Named command entry (backend has commands[], not a singular `command`) */
 export interface CommandDef {
   name: string;
   command: string;
 }
 
-/** 应用列表项 */
+/** Application list / detail item — aligned with GET /api/applications */
 export interface ApplicationItem {
   id: number;
   name: string;
   description: string;
   commands: CommandDef[];
   workingDirectory: string;
-  environment: string; // JSON string
+  /** JSON object string, e.g. `{"NODE_ENV":"development"}` */
+  environment: string;
   autoStart: boolean;
   enabled: boolean;
   createdAt: string;
   updatedAt: string;
 }
 
-/** 应用状态详情 */
+/**
+ * Runtime status from GET /api/applications/:id/status
+ * or GET /api/applications/status (batch).
+ *
+ * Frontend must gate display: when status !== 'RUNNING', treat
+ * pid / commandName / startedAt / uptime as absent regardless of payload.
+ */
 export interface ApplicationStatusInfo {
   id: number;
   pid: number | null;
   commandName?: string;
   status: ApplicationStatus;
   startedAt: string | null;
-  uptime: string;
+  /** Present when RUNNING; often omitted when STOPPED */
+  uptime?: string;
 }
 
-/** 应用启动结果 */
+/** Start / restart result */
 export interface ApplicationStartResult {
   applicationId: number;
   pid: number;
@@ -46,7 +54,6 @@ export interface ApplicationStartResult {
   startedAt: string;
 }
 
-/** 创建应用请求 */
 export interface CreateApplicationRequest {
   name: string;
   commands: CommandDef[];
@@ -56,7 +63,6 @@ export interface CreateApplicationRequest {
   autoStart?: boolean;
 }
 
-/** 修改应用请求 (所有字段可选) */
 export interface UpdateApplicationRequest {
   name?: string;
   commands?: CommandDef[];
@@ -65,4 +71,31 @@ export interface UpdateApplicationRequest {
   environment?: string;
   autoStart?: boolean;
   enabled?: boolean;
+}
+
+/** English labels for process status (StatusTag default still uses Chinese utils) */
+export const PROCESS_STATUS_LABEL: Record<ApplicationStatus, string> = {
+  STOPPED: 'Stopped',
+  STARTING: 'Starting',
+  RUNNING: 'Running',
+  STOPPING: 'Stopping',
+  FAILED: 'Failed',
+  UNKNOWN: 'Unknown',
+};
+
+/** Normalize runtime fields for UI — ignore stale pid/etc when not RUNNING */
+export function gateRuntimeFields(info: ApplicationStatusInfo): ApplicationStatusInfo {
+  if (info.status === 'RUNNING') {
+    return {
+      ...info,
+      uptime: info.uptime ?? '',
+    };
+  }
+  return {
+    ...info,
+    pid: null,
+    commandName: '',
+    startedAt: null,
+    uptime: '',
+  };
 }

@@ -1,5 +1,5 @@
 import type { Route } from '@/router/types';
-import { FileTextOutlined } from '@ant-design/icons';
+import { FileTextOutlined, ClusterOutlined, UnorderedListOutlined } from '@ant-design/icons';
 import { createElement, lazy } from 'react';
 
 const LogList = lazy(() => import('@/pages/logs/list'));
@@ -11,27 +11,52 @@ const routes: Route = {
   icon: createElement(FileTextOutlined),
   key: 30,
   path: '/logs',
+  meta: {
+    title: 'Logs',
+    breadcrumb: 'Logs',
+  },
   children: [
     {
       key: 31,
       index: true,
       Component: LogList,
-      name: '日志列表',
-      showInMenu: false,
+      name: 'Files',
+      icon: createElement(UnorderedListOutlined),
+      showInMenu: true,
+      meta: {
+        title: 'Log Files',
+        breadcrumb: 'Files',
+        parentPath: '/logs',
+        parentKey: '/logs',
+      },
     },
     {
       key: 32,
       path: '/logs/groups',
       Component: LogGroups,
-      name: '日志分组',
-      showInMenu: false,
+      name: 'Groups',
+      icon: createElement(ClusterOutlined),
+      showInMenu: true,
+      meta: {
+        title: 'Log Groups',
+        breadcrumb: 'Groups',
+        parentPath: '/logs',
+      },
     },
     {
       key: 33,
       path: '/logs/:id',
       Component: LogDetail,
-      name: '日志详情',
+      name: 'Log Detail',
       showInMenu: false,
+      meta: {
+        title: 'Log Detail',
+        breadcrumb: 'Detail',
+        parentKey: '/logs',
+        parentPath: '/logs',
+        hideInMenu: true,
+        hideInBreadcrumb: false,
+      },
     },
   ],
 };

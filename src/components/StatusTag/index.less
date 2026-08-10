@@ -1,0 +1,45 @@
+.ldw-status-tag {
+  margin-inline-end: 0;
+  font-weight: 500;
+  font-size: 12px;
+  line-height: 20px;
+}
+
+.ldw-status-dot-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  vertical-align: middle;
+}
+
+.ldw-status-dot {
+  display: inline-block;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.ldw-status-dot--pulse {
+  animation: ldw-pulse 1.6s ease-in-out infinite;
+}
+
+.ldw-status-dot-label {
+  font-size: 13px;
+  color: var(--ldw-text-secondary);
+  line-height: 1;
+}
+
+@keyframes ldw-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ldw-status-dot--pulse {
+    animation: none;
+  }
+}

@@ -1,95 +1,222 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import './git.less';
+
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  Table,
-  Button,
-  Space,
-  Tag,
-  Input,
-  Popconfirm,
   App,
+  Button,
+  Checkbox,
+  Input,
+  InputNumber,
   Modal,
   Select,
-  Tabs,
-  Card,
-  Empty,
+  Skeleton,
+  Space,
+  Tag,
+  Tooltip,
   Typography,
 } from 'antd';
 import {
   ScanOutlined,
-  PlusOutlined,
   DeleteOutlined,
   EyeOutlined,
-  FolderOpenOutlined,
-  ReloadOutlined,
+  TeamOutlined,
+  ClusterOutlined,
 } from '@ant-design/icons';
-import { useState } from 'react';
-import type { ColumnsType } from 'antd/es/table';
-import { useNavigate } from 'react-router';
-import { gitApi } from '@/api/gitApi';
-import type { GitProjectItem, GitGroup } from '@/types/git';
-import { getGitStatusInfo } from '@/utils/format';
-import { shortenPath } from '@/utils/path';
-import PageContainer from '@/components/PageContainer';
+import { Link, useNavigate, useSearchParams } from 'react-router';
+import {
+  gitApi,
+  fetchProjectStatuses,
+  isProjectStatusBatchAvailable,
+} from '@/api/gitApi';
+import type { GitProjectListItem, GitGroup } from '@/types/git';
+import {
+  PageContainer,
+  DataTable,
+  StatusTag,
+  PathText,
+  ConfirmButton,
+  EmptyState,
+} from '@/components';
+import type { DataTableColumn } from '@/components';
 
 const { Text } = Typography;
+
+type StatusMap = Record<number, { status: string; loading?: boolean }>;
 
 const GitProjects = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { message: appMessage } = App.useApp();
+  const [searchParams, setSearchParams] = useSearchParams();
 
-  // scan
+  const searchQ = searchParams.get('q') ?? '';
+
   const [scanPath, setScanPath] = useState('');
   const [maxDepth, setMaxDepth] = useState(5);
-
-  // selection & group modal
-  const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
+  const [selectedRowKeys, setSelectedRowKeys] = useState<number[]>([]);
   const [groupModalOpen, setGroupModalOpen] = useState(false);
   const [selectGroupId, setSelectGroupId] = useState<number | undefined>();
+  const [statusMap, setStatusMap] = useState<StatusMap>({});
+  const [statusColumnEnabled, setStatusColumnEnabled] = useState(true);
+  const [statusLoading, setStatusLoading] = useState(false);
 
-  // tabs
-  const [activeTab, setActiveTab] = useState('projects');
-  const [selectedGroup, setSelectedGroup] = useState<GitGroup | null>(null);
+  const setSearch = useCallback(
+    (value: string) => {
+      setSearchParams(
+        (prev) => {
+          const next = new URLSearchParams(prev);
+          if (value.trim()) next.set('q', value);
+          else next.delete('q');
+          return next;
+        },
+        { replace: true },
+      );
+    },
+    [setSearchParams],
+  );
 
-  const { data, isLoading, isFetching, refetch: refetchProjects } = useQuery({
+  const {
+    data,
+    isLoading,
+    isFetching,
+    isError,
+    error,
+    refetch: refetchProjects,
+  } = useQuery({
     queryKey: ['gitProjects'],
     queryFn: () => gitApi.listProjects(),
   });
 
-  const {
-    data: groupsData,
-    isFetching: groupsFetching,
-    refetch: refetchGroups,
-  } = useQuery({
+  const { data: groupsData } = useQuery({
     queryKey: ['gitGroups'],
     queryFn: () => gitApi.listGroups(),
   });
 
-  // 按分组查询项目（选中分组时触发）
-  const {
-    data: groupProjectsData,
-    isLoading: groupProjectsLoading,
-    isFetching: groupProjectsFetching,
-    refetch: refetchGroupProjects,
-  } = useQuery({
-    queryKey: ['gitGroupProjects', selectedGroup?.id],
-    queryFn: () => gitApi.listProjectsByGroup(selectedGroup!.id),
-    enabled: !!selectedGroup,
-  });
+  // Stabilize empty fallback — unstable [] would re-fire status batch effect every render
+  const items: GitProjectListItem[] = useMemo(
+    () => data?.data?.items ?? [],
+    [data?.data?.items],
+  );
+  const groups: GitGroup[] = useMemo(
+    () => groupsData?.data?.items ?? [],
+    [groupsData?.data?.items],
+  );
+
+  const filteredItems = useMemo(() => {
+    const q = searchQ.trim().toLowerCase();
+    if (!q) return items;
+    return items.filter(
+      (p) =>
+        p.name.toLowerCase().includes(q) ||
+        p.path.toLowerCase().includes(q) ||
+        (p.branch || '').toLowerCase().includes(q) ||
+        (p.groupName || '').toLowerCase().includes(q),
+    );
+  }, [items, searchQ]);
+
+  /** Progressive status fill — list first, then batch POST */
+  useEffect(() => {
+    let cancelled = false;
+    const ids = items.map((p) => p.id);
+    if (ids.length === 0) return;
+
+    // If list already has status (enrich path), use it
+    const alreadyEnriched = items.every((p) => p.status != null && p.status !== '');
+    if (alreadyEnriched) {
+      const map: StatusMap = {};
+      for (const p of items) {
+        if (p.status) map[p.id] = { status: p.status };
+      }
+      setStatusMap(map);
+      setStatusColumnEnabled(true);
+      return;
+    }
+
+    (async () => {
+      const available = await isProjectStatusBatchAvailable();
+      if (cancelled) return;
+      if (!available) {
+        setStatusColumnEnabled(false);
+        setStatusMap({});
+        return;
+      }
+      setStatusColumnEnabled(true);
+      setStatusLoading(true);
+      // Placeholder skeleton per row
+      setStatusMap((prev) => {
+        const next = { ...prev };
+        for (const id of ids) {
+          if (!next[id]?.status) next[id] = { status: '', loading: true };
+        }
+        return next;
+      });
+      try {
+        const t0 = performance.now();
+        const result = await fetchProjectStatuses(ids);
+        if (cancelled) return;
+        if (result == null) {
+          setStatusColumnEnabled(false);
+          setStatusMap({});
+          return;
+        }
+        const map: StatusMap = {};
+        for (const row of result) {
+          map[row.id] = { status: row.status, loading: false };
+        }
+        // Mark missing as UNKNOWN
+        for (const id of ids) {
+          if (!map[id]) map[id] = { status: 'UNKNOWN', loading: false };
+        }
+        setStatusMap(map);
+        if (import.meta.env.DEV) {
+          console.debug(
+            `[git] status batch for ${ids.length} projects: ${Math.round(performance.now() - t0)}ms`,
+          );
+        }
+      } catch {
+        if (!cancelled) {
+          // Keep column but show UNKNOWN placeholders
+          setStatusMap((prev) => {
+            const next = { ...prev };
+            for (const id of ids) {
+              next[id] = { status: 'UNKNOWN', loading: false };
+            }
+            return next;
+          });
+        }
+      } finally {
+        if (!cancelled) setStatusLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [items]);
 
   const scanMutation = useMutation({
-    mutationFn: () => gitApi.scan({ path: scanPath, maxDepth }),
-    onSuccess: (res: any) => {
-      appMessage.success(`扫描完成，发现 ${res.data?.items?.length || 0} 个项目`);
+    mutationFn: () => gitApi.scan({ path: scanPath.trim(), maxDepth }),
+    onSuccess: (res) => {
+      const found = res.data?.items?.length ?? 0;
+      const total = res.data?.total ?? found;
+      appMessage.success(
+        found > 0
+          ? `Scan complete — found ${found} project${found === 1 ? '' : 's'}${total !== found ? ` (total ${total})` : ''}`
+          : 'Scan complete — no new projects found',
+      );
       queryClient.invalidateQueries({ queryKey: ['gitProjects'] });
+      queryClient.invalidateQueries({ queryKey: ['gitGroups'] });
     },
   });
 
   const deleteMutation = useMutation({
     mutationFn: (id: number) => gitApi.deleteProject(id),
     onSuccess: () => {
-      appMessage.success('删除成功');
+      appMessage.success('Project removed');
       queryClient.invalidateQueries({ queryKey: ['gitProjects'] });
+      queryClient.invalidateQueries({ queryKey: ['gitGroups'] });
+      setSelectedRowKeys([]);
     },
   });
 
@@ -98,388 +225,179 @@ const GitProjects = () => {
       gitApi.batchAssignGroup({ projectIds, groupId }),
     onSuccess: (_res, variables) => {
       const count = variables.projectIds.length;
-      appMessage.success(count > 1 ? `已将 ${count} 个项目加入分组` : '已加入分组');
+      appMessage.success(
+        count > 1
+          ? `Assigned ${count} projects to group`
+          : 'Project assigned to group',
+      );
       queryClient.invalidateQueries({ queryKey: ['gitProjects'] });
       queryClient.invalidateQueries({ queryKey: ['gitGroups'] });
       queryClient.invalidateQueries({ queryKey: ['gitGroupProjects'] });
       setGroupModalOpen(false);
       setSelectedRowKeys([]);
-    },
-  });
-
-  const deleteGroupMutation = useMutation({
-    mutationFn: (id: number) => gitApi.deleteGroup(id),
-    onSuccess: () => {
-      appMessage.success('分组已删除');
-      queryClient.invalidateQueries({ queryKey: ['gitGroups'] });
-      queryClient.invalidateQueries({ queryKey: ['gitGroupProjects'] });
-      setSelectedGroup(null);
+      setSelectGroupId(undefined);
     },
   });
 
   const handleScan = () => {
     if (!scanPath.trim()) {
-      appMessage.warning('请输入扫描路径');
+      appMessage.warning('Enter a scan path');
       return;
     }
+    if (scanMutation.isPending) return;
     scanMutation.mutate();
   };
 
-  const openGroupModal = (keys: React.Key[]) => {
+  const openGroupModal = (keys: number[]) => {
     setSelectedRowKeys(keys);
     setSelectGroupId(undefined);
     setGroupModalOpen(true);
   };
 
-  const handleRefresh = () => {
-    refetchProjects();
-    refetchGroups();
-    if (selectedGroup) {
-      refetchGroupProjects();
-    }
+  const toggleSelect = (id: number, checked: boolean) => {
+    setSelectedRowKeys((prev) =>
+      checked ? [...new Set([...prev, id])] : prev.filter((k) => k !== id),
+    );
   };
 
-  const groups: GitGroup[] = groupsData?.data?.items || [];
-  const items: GitProjectItem[] = data?.data?.items || [];
-  const groupProjects: GitProjectItem[] = groupProjectsData?.data?.items || [];
+  const allFilteredIds = filteredItems.map((p) => p.id);
+  const allSelected =
+    allFilteredIds.length > 0 && allFilteredIds.every((id) => selectedRowKeys.includes(id));
+  const someSelected =
+    allFilteredIds.some((id) => selectedRowKeys.includes(id)) && !allSelected;
 
-  const columns: ColumnsType<GitProjectItem> = [
+  const columns: DataTableColumn<GitProjectListItem>[] = [
     {
+      key: 'select',
+      title: (
+        <Checkbox
+          checked={allSelected}
+          indeterminate={someSelected}
+          onChange={(e) => {
+            if (e.target.checked) {
+              setSelectedRowKeys((prev) => [...new Set([...prev, ...allFilteredIds])]);
+            } else {
+              setSelectedRowKeys((prev) => prev.filter((id) => !allFilteredIds.includes(id)));
+            }
+          }}
+          aria-label="Select all"
+        />
+      ),
+      width: 48,
+      locked: true,
+      render: (_: unknown, record) => (
+        <Checkbox
+          checked={selectedRowKeys.includes(record.id)}
+          onChange={(e) => toggleSelect(record.id, e.target.checked)}
+          aria-label={`Select ${record.name}`}
+        />
+      ),
+    },
+    {
+      key: 'name',
       title: 'Name',
       dataIndex: 'name',
-      key: 'name',
-      render: (text: string, record: GitProjectItem) => (
-        <a onClick={() => navigate(`/git/projects/${record.id}`)}>{text}</a>
+      locked: true,
+      render: (_: unknown, record) => (
+        <Link to={`/git/projects/${record.id}`} className="ldw-clickable">
+          {record.name}
+        </Link>
       ),
     },
     {
+      key: 'path',
       title: 'Path',
       dataIndex: 'path',
-      key: 'path',
-      render: (p: string) => <code style={{ fontSize: 12 }}>{shortenPath(p)}</code>,
+      ellipsis: true,
+      render: (_: unknown, record) => <PathText path={record.path} />,
     },
     {
+      key: 'branch',
       title: 'Branch',
       dataIndex: 'branch',
-      key: 'branch',
-      width: 120,
-      render: (b: string) => (b ? <Tag>{b}</Tag> : <Tag>—</Tag>),
+      width: 140,
+      render: (b: unknown) => (b ? <Tag>{String(b)}</Tag> : <Tag>—</Tag>),
     },
+    ...(statusColumnEnabled
+      ? [
+          {
+            key: 'status',
+            title: (
+              <Tooltip title={statusLoading ? 'Loading git status…' : 'Working tree status'}>
+                <span>Status</span>
+              </Tooltip>
+            ),
+            width: 120,
+            render: (_: unknown, record: GitProjectListItem) => {
+              const entry = statusMap[record.id];
+              if (!entry || entry.loading || !entry.status) {
+                return <Skeleton.Button active size="small" style={{ width: 64, height: 22 }} />;
+              }
+              return <StatusTag status={entry.status} kind="git" />;
+            },
+          } satisfies DataTableColumn<GitProjectListItem>,
+        ]
+      : [
+          {
+            key: 'status',
+            title: (
+              <Tooltip title="Batch status API unavailable (POST /api/git/projects/status). Status will appear when the backend ships it.">
+                <span>Status</span>
+              </Tooltip>
+            ),
+            width: 100,
+            render: () => (
+              <Text type="secondary" style={{ fontSize: 12 }}>
+                N/A
+              </Text>
+            ),
+          } satisfies DataTableColumn<GitProjectListItem>,
+        ]),
     {
-      title: 'Status',
-      dataIndex: 'status',
-      key: 'status',
-      width: 100,
-      render: (s: string) => {
-        const info = getGitStatusInfo(s);
-        return <Tag color={info.color}>{info.label}</Tag>;
-      },
-    },
-    {
+      key: 'groupName',
       title: 'Group',
       dataIndex: 'groupName',
-      key: 'groupName',
-      width: 120,
-      render: (g: string) => (g ? <Tag color="purple">{g}</Tag> : <Tag>—</Tag>),
+      width: 140,
+      render: (_: unknown, record) =>
+        record.groupName ? (
+          <Tag color="cyan">{record.groupName}</Tag>
+        ) : (
+          <Text type="secondary">—</Text>
+        ),
     },
     {
-      title: 'Action',
       key: 'action',
-      width: 220,
-      render: (_: unknown, record: GitProjectItem) => (
-        <Space size="small">
-          <Button
-            size="small"
-            icon={<EyeOutlined />}
-            onClick={() => navigate(`/git/projects/${record.id}`)}
-          >
-            详情
-          </Button>
-          <Button
-            size="small"
-            onClick={() => openGroupModal([record.id])}
-          >
-            分组
-          </Button>
-          <Popconfirm
-            title="确认删除"
-            onConfirm={() => deleteMutation.mutate(record.id)}
-          >
-            <Button size="small" danger icon={<DeleteOutlined />} />
-          </Popconfirm>
-        </Space>
-      ),
-    },
-  ];
-
-  const tabItems = [
-    {
-      key: 'projects',
-      label: '项目列表',
-      children: (
-        <>
-          {/* 扫描区域 */}
-          <div
-            style={{
-              display: 'flex',
-              gap: 8,
-              marginBottom: 16,
-              padding: 12,
-              background: '#fafafa',
-              borderRadius: 6,
-            }}
-          >
-            <Input
-              placeholder="扫描路径, e.g. ~/workspace"
-              value={scanPath}
-              onChange={(e) => setScanPath(e.target.value)}
-              onPressEnter={handleScan}
-              style={{ flex: 1 }}
-            />
-            <Input
-              placeholder="深度"
-              type="number"
-              min={1}
-              max={10}
-              value={maxDepth}
-              onChange={(e) => setMaxDepth(Number(e.target.value))}
-              style={{ width: 80 }}
-            />
+      title: 'Action',
+      width: 200,
+      locked: true,
+      render: (_: unknown, record) => (
+        <Space size={4}>
+          <Tooltip title="View detail">
             <Button
-              type="primary"
-              icon={<ScanOutlined />}
-              onClick={handleScan}
-              loading={scanMutation.isPending}
-            >
-              Scan
-            </Button>
-          </div>
-
-          {/* 批量操作栏 */}
-          {selectedRowKeys.length > 0 && (
-            <div
-              style={{
-                marginBottom: 16,
-                padding: '8px 12px',
-                background: '#e6f4ff',
-                borderRadius: 6,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-              }}
-            >
-              <span>
-                已选 <strong>{selectedRowKeys.length}</strong> 个项目
-              </span>
-              <Space>
-                <Button
-                  type="primary"
-                  size="small"
-                  onClick={() => openGroupModal(selectedRowKeys)}
-                >
-                  批量移动到分组
-                </Button>
-                <Button size="small" onClick={() => setSelectedRowKeys([])}>
-                  取消选择
-                </Button>
-              </Space>
-            </div>
-          )}
-
-          <Table
-            rowSelection={{
-              selectedRowKeys,
-              onChange: (keys) => setSelectedRowKeys(keys),
+              size="small"
+              type="text"
+              icon={<EyeOutlined />}
+              className="ldw-clickable"
+              aria-label={`View ${record.name}`}
+              onClick={() => navigate(`/git/projects/${record.id}`)}
+            />
+          </Tooltip>
+          <Button size="small" className="ldw-clickable" onClick={() => openGroupModal([record.id])}>
+            Group
+          </Button>
+          <ConfirmButton
+            size="small"
+            danger
+            icon={<DeleteOutlined />}
+            confirmTitle="Remove this project?"
+            confirmDescription="Only removes the registry record — local files are kept."
+            okText="Remove"
+            onConfirm={async () => {
+              await deleteMutation.mutateAsync(record.id);
             }}
-            columns={columns}
-            dataSource={items}
-            rowKey="id"
-            loading={isLoading}
-            pagination={{ pageSize: 20 }}
-            onRow={(r) => ({
-              onDoubleClick: () => navigate(`/git/projects/${r.id}`),
-            })}
+            aria-label={`Delete ${record.name}`}
           />
-        </>
-      ),
-    },
-    {
-      key: 'groups',
-      label: '分组管理',
-      children: (
-        <div style={{ display: 'flex', gap: 16 }}>
-          {/* 分组卡片列表 */}
-          <div style={{ flex: selectedGroup ? '0 0 45%' : '1' }}>
-            {groups.length === 0 ? (
-              <Empty description="暂无分组">
-                <Button
-                  type="primary"
-                  icon={<PlusOutlined />}
-                  onClick={() => navigate('/git/groups')}
-                >
-                  前往创建分组
-                </Button>
-              </Empty>
-            ) : (
-              <div
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: selectedGroup
-                    ? '1fr'
-                    : 'repeat(auto-fill, minmax(300px, 1fr))',
-                  gap: 12,
-                }}
-              >
-                {groups.map((g) => (
-                  <Card
-                    key={g.id}
-                    hoverable
-                    size="small"
-                    style={{
-                      border:
-                        selectedGroup?.id === g.id
-                          ? '2px solid #1677ff'
-                          : undefined,
-                    }}
-                    title={
-                      <a
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSelectedGroup(
-                            selectedGroup?.id === g.id ? null : g,
-                          );
-                        }}
-                      >
-                        {g.name}
-                      </a>
-                    }
-                    extra={
-                      <span onClick={(e) => e.stopPropagation()}>
-                        <Popconfirm
-                          title="确认删除此分组？"
-                          onConfirm={() => deleteGroupMutation.mutate(g.id)}
-                        >
-                          <Button
-                            size="small"
-                            danger
-                            icon={<DeleteOutlined />}
-                          />
-                        </Popconfirm>
-                      </span>
-                    }
-                    onClick={() => navigate(`/git/groups/${g.id}`)}
-                  >
-                    <p
-                      style={{
-                        color: '#8c8c8c',
-                        minHeight: 36,
-                        fontSize: 13,
-                        marginBottom: 8,
-                      }}
-                    >
-                      {g.description || '暂无描述'}
-                    </p>
-                    <Space direction="vertical" size={2}>
-                      <Text>
-                        <strong>{g.projectCount}</strong> 个项目
-                      </Text>
-                      <Text type="secondary" style={{ fontSize: 12 }}>
-                        <FolderOpenOutlined /> RAG:{' '}
-                        {shortenPath(g.ragPath) || '—'}
-                      </Text>
-                      <Text type="secondary" style={{ fontSize: 12 }}>
-                        <FolderOpenOutlined /> Index:{' '}
-                        {shortenPath(g.indexPath) || '—'}
-                      </Text>
-                    </Space>
-                  </Card>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* 选中分组 → 通过 API 查询项目列表 */}
-          {selectedGroup && (
-            <div style={{ flex: '0 0 55%' }}>
-              <Card
-                title={
-                  <span>
-                    {selectedGroup.name} · 项目 ({groupProjects.length})
-                  </span>
-                }
-                extra={
-                  <Button
-                    size="small"
-                    onClick={() => setSelectedGroup(null)}
-                  >
-                    关闭
-                  </Button>
-                }
-              >
-                {groupProjects.length === 0 && !groupProjectsLoading ? (
-                  <Empty
-                    description="该分组下暂无项目"
-                    image={Empty.PRESENTED_IMAGE_SIMPLE}
-                  />
-                ) : (
-                  <Table
-                    columns={[
-                      {
-                        title: 'Name',
-                        dataIndex: 'name',
-                        render: (t: string, r: GitProjectItem) => (
-                          <a onClick={() => navigate(`/git/projects/${r.id}`)}>
-                            {t}
-                          </a>
-                        ),
-                      },
-                      {
-                        title: 'Path',
-                        dataIndex: 'path',
-                        render: (p: string) => (
-                          <code style={{ fontSize: 12 }}>
-                            {shortenPath(p)}
-                          </code>
-                        ),
-                      },
-                      {
-                        title: 'Status',
-                        dataIndex: 'status',
-                        render: (s: string) => {
-                          const info = getGitStatusInfo(s);
-                          return (
-                            <Tag color={info.color}>{info.label}</Tag>
-                          );
-                        },
-                      },
-                      {
-                        title: 'Action',
-                        key: 'action',
-                        width: 80,
-                        render: (_: unknown, r: GitProjectItem) => (
-                          <Button
-                            size="small"
-                            type="link"
-                            onClick={() =>
-                              navigate(`/git/projects/${r.id}`)
-                            }
-                          >
-                            详情
-                          </Button>
-                        ),
-                      },
-                    ]}
-                    dataSource={groupProjects}
-                    rowKey="id"
-                    pagination={false}
-                    size="small"
-                    loading={groupProjectsLoading}
-                  />
-                )}
-              </Card>
-            </div>
-          )}
-        </div>
+        </Space>
       ),
     },
   ];
@@ -487,48 +405,176 @@ const GitProjects = () => {
   return (
     <PageContainer
       title="Git Projects"
+      subTitle="Local repositories discovered under scanned paths"
+      error={isError ? (error as Error) : null}
+      onRetry={() => refetchProjects()}
       extra={
-        <Space>
-          <Button
-            icon={<ReloadOutlined />}
-            onClick={handleRefresh}
-            loading={isFetching || groupsFetching || groupProjectsFetching}
-          >
-            刷新
-          </Button>
-          <Button onClick={() => navigate('/git/groups')}>管理分组</Button>
+        <Space wrap>
+          <Link to="/git/groups">
+            <Button icon={<ClusterOutlined />} className="ldw-clickable">
+              Manage Groups
+            </Button>
+          </Link>
         </Space>
       }
     >
-      <Tabs activeKey={activeTab} onChange={setActiveTab} items={tabItems} />
+      <div className="git-scan-bar">
+        <Input
+          className="git-scan-bar__path"
+          placeholder="Scan path, e.g. ~/project"
+          value={scanPath}
+          onChange={(e) => setScanPath(e.target.value)}
+          onPressEnter={handleScan}
+          disabled={scanMutation.isPending}
+          aria-label="Scan path"
+        />
+        <InputNumber
+          className="git-scan-bar__depth"
+          min={1}
+          max={10}
+          value={maxDepth}
+          onChange={(v) => setMaxDepth(Number(v) || 5)}
+          disabled={scanMutation.isPending}
+          aria-label="Max depth"
+        />
+        <Button
+          type="primary"
+          icon={<ScanOutlined />}
+          onClick={handleScan}
+          loading={scanMutation.isPending}
+          disabled={scanMutation.isPending}
+          className="ldw-clickable"
+        >
+          Scan
+        </Button>
+      </div>
 
-      {/* 分组选择弹窗（单条 + 批量共用，走 batchAssignGroup 接口） */}
+      {selectedRowKeys.length > 0 && (
+        <div className="git-batch-bar" role="status">
+          <span>
+            Selected <strong>{selectedRowKeys.length}</strong> project
+            {selectedRowKeys.length === 1 ? '' : 's'}
+          </span>
+          <Space>
+            <Button
+              type="primary"
+              size="small"
+              icon={<TeamOutlined />}
+              className="ldw-clickable"
+              onClick={() => openGroupModal(selectedRowKeys)}
+            >
+              Assign to Group
+            </Button>
+            <Button size="small" className="ldw-clickable" onClick={() => setSelectedRowKeys([])}>
+              Clear
+            </Button>
+          </Space>
+        </div>
+      )}
+
+      {!isLoading && items.length === 0 ? (
+        <EmptyState
+          preset="folder"
+          title="No git projects"
+          description="Scan a directory to discover local repositories."
+          action={{
+            text: 'Scan Projects',
+            icon: <ScanOutlined />,
+            onClick: () => {
+              if (!scanPath.trim()) {
+                appMessage.info('Enter a path above, then click Scan');
+                return;
+              }
+              handleScan();
+            },
+          }}
+        />
+      ) : (
+        <DataTable<GitProjectListItem>
+          rowKey="id"
+          loading={isLoading || isFetching}
+          dataSource={filteredItems}
+          columns={columns}
+          searchable
+          searchPlaceholder="Search name, path, branch…"
+          searchValue={searchQ}
+          onSearch={setSearch}
+          onRefresh={() => refetchProjects()}
+          emptyTitle={searchQ ? 'No matching projects' : 'No git projects'}
+          emptyDescription={
+            searchQ
+              ? 'Try a different search term.'
+              : 'Scan a directory to discover local repositories.'
+          }
+          emptyAction={
+            searchQ
+              ? undefined
+              : {
+                  text: 'Scan Projects',
+                  onClick: handleScan,
+                }
+          }
+          pagination={{ pageSize: 20, showSizeChanger: true }}
+          scroll={{ x: 960 }}
+        />
+      )}
+
       <Modal
         title={
           selectedRowKeys.length > 1
-            ? `将 ${selectedRowKeys.length} 个项目移动到分组`
-            : '将项目加入分组'
+            ? `Assign ${selectedRowKeys.length} projects to a group`
+            : 'Assign project to a group'
         }
         open={groupModalOpen}
         onOk={() => {
-          if (selectGroupId) {
-            assignGroupMutation.mutate({
-              projectIds: selectedRowKeys.map(Number),
-              groupId: selectGroupId,
-            });
+          if (!selectGroupId) {
+            appMessage.warning('Select a target group');
+            return;
           }
+          assignGroupMutation.mutate({
+            projectIds: selectedRowKeys,
+            groupId: selectGroupId,
+          });
         }}
-        onCancel={() => setGroupModalOpen(false)}
+        onCancel={() => {
+          setGroupModalOpen(false);
+          setSelectGroupId(undefined);
+        }}
         confirmLoading={assignGroupMutation.isPending}
         okButtonProps={{ disabled: !selectGroupId }}
+        okText="Assign"
+        destroyOnHidden
       >
-        <Select
-          style={{ width: '100%', marginTop: 16 }}
-          placeholder="选择目标分组"
-          value={selectGroupId}
-          onChange={setSelectGroupId}
-          options={groups.map((g) => ({ label: g.name, value: g.id }))}
-        />
+        <div className="git-assign-modal">
+          <Text type="secondary">
+            {selectedRowKeys.length} project{selectedRowKeys.length === 1 ? '' : 's'} selected
+          </Text>
+          <Select
+            style={{ width: '100%', marginTop: 12 }}
+            placeholder="Select target group"
+            value={selectGroupId}
+            onChange={setSelectGroupId}
+            options={groups.map((g) => ({
+              label: `${g.name} (${g.projectCount} projects)`,
+              value: g.id,
+            }))}
+            showSearch
+            optionFilterProp="label"
+            notFoundContent={
+              <EmptyState
+                title="No groups"
+                description="Create a group first."
+                action={{
+                  text: 'Manage Groups',
+                  onClick: () => {
+                    setGroupModalOpen(false);
+                    navigate('/git/groups');
+                  },
+                }}
+              />
+            }
+          />
+        </div>
       </Modal>
     </PageContainer>
   );

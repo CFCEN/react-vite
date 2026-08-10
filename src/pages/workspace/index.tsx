@@ -1,116 +1,188 @@
+import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Button, Card, Tag, Spin, Empty, Typography, Table } from 'antd';
+import { Button, Card, Typography } from 'antd';
 import { FolderOpenOutlined, ReloadOutlined } from '@ant-design/icons';
-import type { ColumnsType } from 'antd/es/table';
+import { useNavigate } from 'react-router';
 import { workspaceApi } from '@/api/workspaceApi';
+import { gitApi } from '@/api/gitApi';
 import type { ProjectContext } from '@/types/workspace';
-import { shortenPath } from '@/utils/path';
-import PageContainer from '@/components/PageContainer';
+import {
+  PageContainer,
+  DataTable,
+  StatusTag,
+  PathText,
+  EmptyState,
+  TimeText,
+  type DataTableColumn,
+} from '@/components';
+import './index.less';
 
 const { Text } = Typography;
 
-const indexStatusColor: Record<string, string> = {
-  NOT_INDEXED: 'default',
-  INDEXING: 'processing',
-  READY: 'green',
-  FAILED: 'red',
-  OUTDATED: 'orange',
-};
-
-const contextColumns: ColumnsType<ProjectContext> = [
-  {
-    title: 'Name',
-    dataIndex: 'name',
-    key: 'name',
-    render: (n: string) => n || <Tag>未命名</Tag>,
-  },
-  {
-    title: 'Group ID',
-    dataIndex: 'groupId',
-    key: 'groupId',
-    width: 90,
-  },
-  {
-    title: 'RAG Path',
-    dataIndex: 'ragPath',
-    key: 'ragPath',
-    render: (p: string) => <code style={{ fontSize: 12 }}>{shortenPath(p)}</code>,
-  },
-  {
-    title: 'Index Path',
-    dataIndex: 'indexPath',
-    key: 'indexPath',
-    render: (p: string) => <code style={{ fontSize: 12 }}>{shortenPath(p)}</code>,
-  },
-  {
-    title: 'Index Status',
-    dataIndex: 'indexStatus',
-    key: 'indexStatus',
-    width: 120,
-    render: (s: string) => <Tag color={indexStatusColor[s] || 'default'}>{s}</Tag>,
-  },
-];
+type ContextRow = ProjectContext & { groupName: string };
 
 const WorkspaceIndex = () => {
-  const { data, isLoading, isFetching, refetch } = useQuery({
+  const navigate = useNavigate();
+
+  const workspaceQuery = useQuery({
     queryKey: ['workspace'],
     queryFn: () => workspaceApi.overview(),
   });
 
-  const overview = data?.data;
+  const groupsQuery = useQuery({
+    queryKey: ['gitGroups'],
+    queryFn: () => gitApi.listGroups(),
+  });
 
-  if (isLoading) return <Spin />;
+  const overview = workspaceQuery.data?.data;
+  // Stabilize empty fallback — otherwise groupNameById useMemo recomputes every render while loading
+  const groups = useMemo(
+    () => groupsQuery.data?.data?.items ?? [],
+    [groupsQuery.data?.data?.items],
+  );
+
+  const groupNameById = useMemo(() => {
+    const map = new Map<number, string>();
+    for (const g of groups) map.set(g.id, g.name);
+    return map;
+  }, [groups]);
+
+  const contexts: ContextRow[] = useMemo(
+    () =>
+      (overview?.contexts ?? []).map((ctx) => ({
+        ...ctx,
+        groupName: ctx.groupName || groupNameById.get(ctx.groupId) || `Group #${ctx.groupId}`,
+      })),
+    [overview?.contexts, groupNameById],
+  );
+
+  const columns: DataTableColumn<ContextRow>[] = [
+    {
+      key: 'name',
+      title: 'Name',
+      dataIndex: 'name',
+      render: (value) => (value ? String(value) : '—'),
+    },
+    {
+      key: 'groupName',
+      title: 'Group',
+      dataIndex: 'groupName',
+      width: 140,
+      render: (_, row) => (
+        <button
+          type="button"
+          className="workspace-link-btn ldw-clickable"
+          onClick={() => navigate(`/git/groups/${row.groupId}`)}
+          aria-label={`Open group ${row.groupName}`}
+        >
+          {row.groupName}
+        </button>
+      ),
+    },
+    {
+      key: 'indexPath',
+      title: 'Index Path',
+      dataIndex: 'indexPath',
+      render: (value) => (value ? <PathText path={String(value)} /> : '—'),
+    },
+    {
+      key: 'indexStatus',
+      title: 'Index Status',
+      dataIndex: 'indexStatus',
+      width: 140,
+      render: (value) =>
+        value ? <StatusTag status={String(value)} kind="index" /> : '—',
+    },
+    {
+      key: 'lastIndexedAt',
+      title: 'Last Indexed',
+      dataIndex: 'lastIndexedAt',
+      width: 160,
+      render: (value) => <TimeText value={value as string | null} empty="—" />,
+    },
+  ];
+
+  const loading = workspaceQuery.isLoading || groupsQuery.isLoading;
+  const error = workspaceQuery.error || groupsQuery.error;
+  const refreshing = workspaceQuery.isFetching || groupsQuery.isFetching;
+
+  const handleRefresh = () => {
+    void workspaceQuery.refetch();
+    void groupsQuery.refetch();
+  };
 
   return (
     <PageContainer
       title="Workspace · Index"
+      subTitle="Index directories and project contexts"
+      loading={loading}
+      loadingVariant="table"
+      error={error}
+      onRetry={handleRefresh}
       extra={
-        <Button icon={<ReloadOutlined />} onClick={() => refetch()} loading={isFetching}>
-          刷新
+        <Button
+          icon={<ReloadOutlined />}
+          onClick={handleRefresh}
+          loading={refreshing}
+          aria-label="Refresh workspace index"
+        >
+          Refresh
         </Button>
       }
     >
-      <Card title="Index Directories" style={{ marginBottom: 16 }}>
-        {!overview?.indexDirs.length ? (
-          <Empty description="暂无 Index 目录" image={Empty.PRESENTED_IMAGE_SIMPLE}>
-            <Text type="secondary">
-              Index 目录用于存放代码索引数据，为后续 AI 代码理解和搜索功能提供基础。
-            </Text>
-          </Empty>
-        ) : (
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            {overview?.indexDirs.map((dir) => (
-              <Tag key={dir} icon={<FolderOpenOutlined />} color="purple" style={{ fontSize: 14, padding: '4px 12px' }}>
-                {dir}
-              </Tag>
-            ))}
-          </div>
-        )}
-      </Card>
+      <div className="workspace-page">
+        <Card title="Index Directories" className="workspace-card">
+          {!overview?.indexDirs?.length ? (
+            <EmptyState
+              preset="folder"
+              title="No index directories"
+              description="Index dirs store code index data for AI search. They are created with Git groups."
+              action={{
+                text: 'Open Git Groups',
+                onClick: () => navigate('/git/groups'),
+              }}
+            />
+          ) : (
+            <div className="workspace-dir-list">
+              {overview.indexDirs.map((dir) => (
+                <span key={dir} className="workspace-dir-chip">
+                  <FolderOpenOutlined aria-hidden />
+                  {dir}
+                </span>
+              ))}
+            </div>
+          )}
+        </Card>
 
-      <Card title={`Project Contexts (${overview?.contexts?.length || 0})`} style={{ marginBottom: 16 }}>
-        {!overview?.contexts?.length ? (
-          <Empty description="暂无 Context" image={Empty.PRESENTED_IMAGE_SIMPLE}>
-            <Text type="secondary">
-              Context 定义了各分组的 RAG 和 Index 路径，AI 通过 Context 来读取和理解项目代码。
-            </Text>
-          </Empty>
-        ) : (
-          <Table
-            columns={contextColumns}
-            dataSource={overview.contexts}
+        <Card
+          title={`Project Contexts (${contexts.length})`}
+          className="workspace-card"
+        >
+          <DataTable<ContextRow>
             rowKey="id"
+            dataSource={contexts}
+            columns={columns}
+            loading={false}
+            emptyTitle="No contexts"
+            emptyDescription="Contexts are created when you add a Git group. Each context maps RAG and Index paths."
+            emptyAction={{
+              text: 'Open Git Groups',
+              onClick: () => navigate('/git/groups'),
+            }}
+            onRefresh={handleRefresh}
             pagination={false}
-            size="small"
+            showColumnSettings={false}
           />
-        )}
-      </Card>
+        </Card>
 
-      <Card title="Workspace Root">
-        <Text>
-          Root: <code>{overview?.root || '—'}</code>
-        </Text>
-      </Card>
+        <Card title="Workspace Root" className="workspace-card">
+          {overview?.root ? (
+            <PathText path={overview.root} />
+          ) : (
+            <Text type="secondary">—</Text>
+          )}
+        </Card>
+      </div>
     </PageContainer>
   );
 };

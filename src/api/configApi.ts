@@ -11,8 +11,10 @@ export const configApi = {
   list: () =>
     client.get<any, ApiListResponse<ConfigFileItem>>('/api/config-files'),
 
-  getById: (id: number) =>
-    client.get<any, ApiResponse<ConfigFileDetail>>(`/api/config-files/${id}`),
+  getById: (id: number, options?: { silent?: boolean }) =>
+    client.get<any, ApiResponse<ConfigFileDetail>>(`/api/config-files/${id}`, {
+      ...(options?.silent ? { silent: true } : {}),
+    } as Parameters<typeof client.get>[1]),
 
   create: (data: CreateConfigRequest) =>
     client.post<any, ApiResponse<ConfigFileItem>>('/api/config-files', data),

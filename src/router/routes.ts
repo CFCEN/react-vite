@@ -9,6 +9,8 @@ import applicationRoutes from './modules/applications';
 import gitRoutes from './modules/git';
 import workspaceRoutes from './modules/workspace';
 import settingsRoutes from './modules/settings';
+import RouteError from '@/components/RouteError';
+import NotFound from '@/components/NotFound';
 
 import type { Route } from '@/router/types';
 
@@ -19,6 +21,7 @@ import type { Route } from '@/router/types';
 export const layoutRoute: Route = {
   path: '/',
   Component: Layout,
+  errorElement: createElement(RouteError),
   children: [
     dashboardRoutes,
     configurationRoutes,
@@ -28,9 +31,21 @@ export const layoutRoute: Route = {
     workspaceRoutes,
     cardRoutes,
     settingsRoutes,
+    {
+      path: '*',
+      name: 'NotFound',
+      showInMenu: false,
+      Component: NotFound,
+      meta: {
+        title: 'Not Found',
+        hideInMenu: true,
+        hideInBreadcrumb: true,
+      },
+    },
   ],
   name: 'layout',
   showInMenu: false,
+  meta: { hideInMenu: true },
 };
 
 export const rootRoutes: Route[] = [

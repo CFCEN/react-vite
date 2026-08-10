@@ -10,6 +10,10 @@ const routes: Route = {
   key: 70,
   path: '/settings',
   Component: Settings,
+  meta: {
+    title: 'Settings',
+    breadcrumb: 'Settings',
+  },
 };
 
 export default routes;

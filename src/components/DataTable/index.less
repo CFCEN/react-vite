@@ -1,0 +1,38 @@
+.ldw-data-table {
+  width: 100%;
+
+  .ldw-data-table-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--ldw-space-md);
+    margin-bottom: var(--ldw-space-md);
+    flex-wrap: wrap;
+  }
+
+  .ldw-data-table-toolbar-left {
+    display: flex;
+    align-items: center;
+    gap: var(--ldw-space-sm);
+    flex-wrap: wrap;
+  }
+
+  .ldw-data-table-inner {
+    .ant-table-thead > tr > th {
+      font-weight: 600;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      color: var(--ldw-text-secondary) !important;
+    }
+
+    .ant-table-tbody > tr {
+      transition: background-color var(--ldw-motion-fast) var(--ldw-easing);
+      cursor: default;
+    }
+
+    .ant-table-tbody > tr.ldw-clickable-row {
+      cursor: pointer;
+    }
+  }
+}

@@ -1,0 +1,28 @@
+.settings-page {
+  width: 100%;
+  min-width: 0;
+}
+
+.settings-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--ldw-space-md);
+  flex-wrap: wrap;
+  margin-bottom: var(--ldw-space-md);
+
+  &:last-child {
+    margin-bottom: 0;
+  }
+}
+
+.settings-hint {
+  margin-bottom: var(--ldw-space-sm) !important;
+  max-width: 520px;
+}
+
+@media (max-width: 768px) {
+  .settings-row {
+    flex-direction: column;
+  }
+}

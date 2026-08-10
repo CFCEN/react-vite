@@ -1,6 +1,10 @@
 import type { Route } from '@/router/types';
 import { Navigate } from 'react-router';
-import { BranchesOutlined } from '@ant-design/icons';
+import {
+  BranchesOutlined,
+  FolderOutlined,
+  ClusterOutlined,
+} from '@ant-design/icons';
 import { createElement, lazy } from 'react';
 
 const GitProjects = lazy(() => import('@/pages/git/projects'));
@@ -9,10 +13,14 @@ const GitGroups = lazy(() => import('@/pages/git/groups'));
 const GitGroupDetail = lazy(() => import('@/pages/git/groupDetail'));
 
 const routes: Route = {
-  name: 'Git Projects',
+  name: 'Git',
   icon: createElement(BranchesOutlined),
   key: 50,
   path: '/git',
+  meta: {
+    title: 'Git',
+    breadcrumb: 'Git',
+  },
   children: [
     {
       key: 50,
@@ -20,34 +28,61 @@ const routes: Route = {
       element: createElement(Navigate, { to: '/git/projects', replace: true }),
       name: 'redirect',
       showInMenu: false,
+      meta: { hideInBreadcrumb: true, hideInMenu: true },
     },
     {
       key: 51,
       path: '/git/projects',
       Component: GitProjects,
-      name: '项目列表',
-      showInMenu: false,
+      name: 'Projects',
+      icon: createElement(FolderOutlined),
+      showInMenu: true,
+      meta: {
+        title: 'Git Projects',
+        breadcrumb: 'Projects',
+        parentPath: '/git',
+      },
     },
     {
       key: 52,
       path: '/git/projects/:id',
       Component: GitProjectDetail,
-      name: '项目详情',
+      name: 'Project Detail',
       showInMenu: false,
+      meta: {
+        title: 'Project Detail',
+        breadcrumb: 'Detail',
+        hideInMenu: true,
+        parentKey: '/git/projects',
+        parentPath: '/git',
+      },
     },
     {
       key: 53,
       path: '/git/groups',
       Component: GitGroups,
-      name: '分组列表',
-      showInMenu: false,
+      name: 'Groups',
+      icon: createElement(ClusterOutlined),
+      showInMenu: true,
+      meta: {
+        title: 'Git Groups',
+        breadcrumb: 'Groups',
+        parentPath: '/git',
+      },
     },
     {
       key: 54,
       path: '/git/groups/:id',
       Component: GitGroupDetail,
-      name: '分组详情',
+      name: 'Group Detail',
       showInMenu: false,
+      meta: {
+        title: 'Group Detail',
+        breadcrumb: 'Detail',
+        hideInMenu: true,
+        parentKey: '/git/groups',
+        parentPath: '/git',
+      },
     },
   ],
 };

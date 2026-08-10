@@ -1,0 +1,25 @@
+.ldw-skeleton {
+  width: 100%;
+
+  &--table {
+    .ldw-skeleton-toolbar {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: var(--ldw-space-lg);
+    }
+  }
+
+  &--cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: var(--ldw-space-lg);
+
+    .ldw-skeleton-card {
+      border-color: var(--ldw-border);
+    }
+  }
+
+  &--detail {
+    max-width: 720px;
+  }
+}

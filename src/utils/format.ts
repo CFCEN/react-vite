@@ -22,51 +22,89 @@ export const formatTimeAgo = (dateStr: string): string => {
   const hours = Math.floor(minutes / 60);
   const days = Math.floor(hours / 24);
 
-  if (seconds < 60) return '刚刚';
-  if (minutes < 60) return `${minutes} 分钟前`;
-  if (hours < 24) return `${hours} 小时前`;
-  if (days < 7) return `${days} 天前`;
-  return new Date(dateStr).toLocaleDateString('zh-CN');
+  if (seconds < 60) return 'just now';
+  if (minutes < 60) return `${minutes}m ago`;
+  if (hours < 24) return `${hours}h ago`;
+  if (days < 7) return `${days}d ago`;
+  return new Date(dateStr).toLocaleDateString('en-US');
 };
 
 /**
- * 格式化日期时间
+ * 格式化日期时间（绝对时间）
  */
 export const formatDateTime = (dateStr: string): string => {
   if (!dateStr) return '-';
-  return new Date(dateStr).toLocaleString('zh-CN');
+  return new Date(dateStr).toLocaleString('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  });
 };
 
+/** Alias — absolute datetime for TimeText / tooltips */
+export const formatDate = formatDateTime;
+
 /**
- * 获取应用状态的中文标签和颜色
+ * 获取索引状态标签与颜色
  */
-export const getApplicationStatusInfo = (
+export const getIndexStatusInfo = (
   status: string
 ): { label: string; color: string } => {
   const map: Record<string, { label: string; color: string }> = {
-    STOPPED: { label: '已停止', color: 'default' },
-    STARTING: { label: '启动中', color: 'processing' },
-    RUNNING: { label: '运行中', color: 'success' },
-    STOPPING: { label: '停止中', color: 'warning' },
-    FAILED: { label: '失败', color: 'error' },
-    UNKNOWN: { label: '未知', color: 'default' },
+    INDEXED: { label: 'Indexed', color: 'success' },
+    READY: { label: 'Indexed', color: 'success' },
+    NOT_INDEXED: { label: 'Not indexed', color: 'default' },
+    PENDING: { label: 'Pending', color: 'default' },
+    INDEXING: { label: 'Indexing', color: 'processing' },
+    FAILED: { label: 'Failed', color: 'error' },
+    STALE: { label: 'Stale', color: 'warning' },
+    OUTDATED: { label: 'Outdated', color: 'warning' },
   };
   return map[status] || { label: status, color: 'default' };
 };
 
 /**
- * 获取 Git 状态的中文标签和颜色
+ * Application process status label + color (English UI)
+ */
+export const getApplicationStatusInfo = (
+  status: string
+): { label: string; color: string } => {
+  const map: Record<string, { label: string; color: string }> = {
+    STOPPED: { label: 'Stopped', color: 'default' },
+    STARTING: { label: 'Starting', color: 'processing' },
+    RUNNING: { label: 'Running', color: 'success' },
+    STOPPING: { label: 'Stopping', color: 'warning' },
+    FAILED: { label: 'Failed', color: 'error' },
+    ERROR: { label: 'Error', color: 'error' },
+    UNKNOWN: { label: 'Unknown', color: 'default' },
+  };
+  return map[status] || { label: status, color: 'default' };
+};
+
+/**
+ * Git working-tree status label + color (English UI)
+ * Keys cover both Title Case (legacy) and UPPER_SNAKE (API enrich).
  */
 export const getGitStatusInfo = (
   status: string
 ): { label: string; color: string } => {
   const map: Record<string, { label: string; color: string }> = {
-    Clean: { label: '干净', color: 'success' },
-    Modified: { label: '已修改', color: 'warning' },
-    Untracked: { label: '未跟踪', color: 'processing' },
-    Ahead: { label: '领先远程', color: 'processing' },
-    Behind: { label: '落后远程', color: 'warning' },
-    UNKNOWN: { label: '未知', color: 'default' },
+    Clean: { label: 'Clean', color: 'success' },
+    CLEAN: { label: 'Clean', color: 'success' },
+    Modified: { label: 'Modified', color: 'warning' },
+    MODIFIED: { label: 'Modified', color: 'warning' },
+    Untracked: { label: 'Untracked', color: 'processing' },
+    UNTRACKED: { label: 'Untracked', color: 'processing' },
+    Ahead: { label: 'Ahead', color: 'processing' },
+    AHEAD: { label: 'Ahead', color: 'processing' },
+    Behind: { label: 'Behind', color: 'warning' },
+    BEHIND: { label: 'Behind', color: 'warning' },
+    DIVERGED: { label: 'Diverged', color: 'error' },
+    CONFLICT: { label: 'Conflict', color: 'error' },
+    UNKNOWN: { label: 'Unknown', color: 'default' },
   };
   return map[status] || { label: status, color: 'default' };
 };

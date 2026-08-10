@@ -84,7 +84,8 @@ const CustomIcon = ({
     </svg>
   );
 
-  return <Icon component={iconComponent} />;
+  // antd Icon accepts a wider SVG props union than CustomIconComponentProps
+  return <Icon component={iconComponent as never} />;
 };
 
 export default CustomIcon;

@@ -10,6 +10,10 @@ const routes: Route = {
   key: 10,
   path: '/dashboard',
   Component: Dashboard,
+  meta: {
+    title: 'Dashboard',
+    breadcrumb: 'Dashboard',
+  },
 };
 
 export default routes;

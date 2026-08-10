@@ -1,42 +1,124 @@
-import axios from 'axios';
-import { message } from 'antd';
+import axios, { type AxiosError, type InternalAxiosRequestConfig } from 'axios';
+import { getMessage } from '@/utils/antdApp';
 
-const BASE_URL = 'http://127.0.0.1:9527';
+export const API_BASE_URL = 'http://127.0.0.1:9527';
+
+/**
+ * Makes `{ silent: true }` a first-class request option so callers can opt out
+ * of the global error toast (feature-probing an endpoint, background polling)
+ * without casting the config.
+ */
+declare module 'axios' {
+  export interface AxiosRequestConfig {
+    silent?: boolean;
+  }
+}
+
+/** Known backend error codes → user-facing hint (English, matches page copy) */
+const ERROR_HINTS: Record<string, string> = {
+  BAD_REQUEST: 'Invalid request',
+  NOT_FOUND: 'Resource not found',
+  INTERNAL: 'Internal server error',
+  FILE_NOT_FOUND: 'File not found',
+  FILE_NOT_READABLE: 'File is not readable',
+  APPLICATION_NOT_FOUND: 'Application not found',
+  APPLICATION_ALREADY_RUNNING: 'Application is already running',
+  APPLICATION_NOT_RUNNING: 'Application is not running',
+  APPLICATION_START_FAILED: 'Failed to start application',
+  APPLICATION_STOP_FAILED: 'Failed to stop application',
+  INVALID_COMMAND: 'Invalid command',
+  GIT_PROJECT_NOT_FOUND: 'Git project not found',
+  GIT_SCAN_FAILED: 'Git scan failed',
+  GROUP_NOT_FOUND: 'Group not found',
+  CONTEXT_NOT_FOUND: 'Context not found',
+};
+
+export interface ApiErrorBody {
+  code: string;
+  message: string;
+}
+
+export class ApiRequestError extends Error {
+  code: string;
+  status?: number;
+  raw?: unknown;
+
+  constructor(code: string, message: string, status?: number, raw?: unknown) {
+    super(message);
+    this.name = 'ApiRequestError';
+    this.code = code;
+    this.status = status;
+    this.raw = raw;
+  }
+}
 
 const client = axios.create({
-  baseURL: BASE_URL,
-  timeout: 30000,
+  baseURL: API_BASE_URL,
+  timeout: 30_000,
   headers: {
     'Content-Type': 'application/json',
   },
 });
 
-// 响应拦截器：统一错误处理
+client.interceptors.request.use((config: InternalAxiosRequestConfig) => {
+  // Ensure /api prefix for relative paths that forget it
+  if (config.url && !config.url.startsWith('http') && !config.url.startsWith('/api')) {
+    config.url = `/api${config.url.startsWith('/') ? '' : '/'}${config.url}`;
+  }
+  return config;
+});
+
 client.interceptors.response.use(
   (response) => {
-    // 直接返回 data 层，调用方无需重复 .data
+    // Backend envelope: { data: T } — return data layer so callers skip .data
     return response.data;
   },
-  (error) => {
+  (error: AxiosError<{ error?: ApiErrorBody }>) => {
     if (axios.isCancel(error)) {
       return Promise.reject(error);
     }
 
+    // Opt-out: caller can set { silent: true } via config
+    const silent = (error.config as InternalAxiosRequestConfig & { silent?: boolean })?.silent;
+
     const response = error.response;
-    if (response?.data?.error) {
-      const { code, message: msg } = response.data.error;
-      // 统一错误提示
-      message.error(msg || `请求失败 [${code}]`);
-    } else if (error.code === 'ECONNABORTED') {
-      message.error('请求超时，请检查后端服务是否启动');
-    } else if (!response) {
-      message.error('网络错误，无法连接到后端服务 (http://127.0.0.1:9527)');
-    } else {
-      message.error(`请求失败: ${error.message}`);
+    const body = response?.data?.error;
+
+    if (body?.code || body?.message) {
+      const code = body.code || 'UNKNOWN';
+      const msg = body.message || ERROR_HINTS[code] || `Request failed [${code}]`;
+      if (!silent) {
+        if (response?.status && response.status >= 500) {
+          getMessage().error(msg);
+        } else if (response?.status === 404) {
+          getMessage().warning(msg);
+        } else {
+          getMessage().error(msg);
+        }
+      }
+      return Promise.reject(new ApiRequestError(code, msg, response?.status, body));
     }
 
-    return Promise.reject(error);
-  }
+    if (error.code === 'ECONNABORTED') {
+      if (!silent) getMessage().error('Request timed out. Is the backend running on :9527?');
+      return Promise.reject(new ApiRequestError('TIMEOUT', 'Request timed out', undefined, error));
+    }
+
+    if (!response) {
+      if (!silent) {
+        getMessage().error(`Network error — cannot reach backend (${API_BASE_URL})`);
+      }
+      return Promise.reject(
+        new ApiRequestError('NETWORK', 'Network error', undefined, error),
+      );
+    }
+
+    const fallback = `Request failed: ${error.message}`;
+    if (!silent) getMessage().error(fallback);
+    return Promise.reject(
+      new ApiRequestError('HTTP', fallback, response.status, error),
+    );
+  },
 );
 
 export default client;

@@ -1,15 +1,15 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import './git.less';
+
+import { useMemo, useState, type MouseEvent } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  Card,
+  App,
   Button,
-  Space,
-  Modal,
+  Card,
   Form,
   Input,
-  Popconfirm,
-  App,
-  Empty,
-  Spin,
+  Modal,
+  Space,
   Typography,
 } from 'antd';
 import {
@@ -19,13 +19,17 @@ import {
   FolderOpenOutlined,
   ReloadOutlined,
 } from '@ant-design/icons';
-import { useState } from 'react';
-import { useNavigate } from 'react-router';
+import { useNavigate, useSearchParams, Link } from 'react-router';
 import { gitApi } from '@/api/gitApi';
-import { workspaceApi } from '@/api/workspaceApi';
 import type { GitGroup } from '@/types/git';
-import { shortenPath } from '@/utils/path';
-import PageContainer from '@/components/PageContainer';
+import {
+  PageContainer,
+  EmptyState,
+  ErrorState,
+  LoadingSkeleton,
+  PathText,
+  ConfirmButton,
+} from '@/components';
 
 const { Text } = Typography;
 
@@ -33,52 +37,65 @@ const GitGroups = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { message: appMessage } = App.useApp();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const searchQ = searchParams.get('q') ?? '';
+
   const [modalOpen, setModalOpen] = useState(false);
   const [editingGroup, setEditingGroup] = useState<GitGroup | null>(null);
   const [form] = Form.useForm();
 
-  const { data, isLoading, isFetching, refetch: refetchGroups } = useQuery({
+  const {
+    data,
+    isLoading,
+    isFetching,
+    isError,
+    error,
+    refetch: refetchGroups,
+  } = useQuery({
     queryKey: ['gitGroups'],
     queryFn: () => gitApi.listGroups(),
   });
 
-  // 获取所有 context 用于统计每个分组的 context 数量
-  const {
-    data: workspaceData,
-    isFetching: workspaceFetching,
-    refetch: refetchWorkspace,
-  } = useQuery({
-    queryKey: ['workspace'],
-    queryFn: () => workspaceApi.overview(),
-  });
-
-  const contexts = workspaceData?.data?.contexts || [];
-  const contextCountByGroup = contexts.reduce<Record<number, number>>((acc, ctx) => {
-    acc[ctx.groupId] = (acc[ctx.groupId] || 0) + 1;
-    return acc;
-  }, {});
-
   const deleteMutation = useMutation({
     mutationFn: (id: number) => gitApi.deleteGroup(id),
     onSuccess: () => {
-      appMessage.success('删除成功');
+      appMessage.success('Group deleted');
       queryClient.invalidateQueries({ queryKey: ['gitGroups'] });
+      queryClient.invalidateQueries({ queryKey: ['gitProjects'] });
+      queryClient.invalidateQueries({ queryKey: ['workspace'] });
     },
   });
 
   const saveMutation = useMutation({
-    mutationFn: ({ id, data }: { id?: number; data: any }) =>
-      id ? gitApi.updateGroup(id, data) : gitApi.createGroup(data),
-    onSuccess: () => {
-      appMessage.success(editingGroup ? '修改成功' : '创建成功');
+    mutationFn: ({ id, data }: { id?: number; data: Record<string, unknown> }) =>
+      id ? gitApi.updateGroup(id, data) : gitApi.createGroup(data as { name: string }),
+    onSuccess: (_res, variables) => {
+      appMessage.success(variables.id ? 'Group updated' : 'Group created');
       queryClient.invalidateQueries({ queryKey: ['gitGroups'] });
+      if (variables.id) {
+        queryClient.invalidateQueries({ queryKey: ['gitGroup', String(variables.id)] });
+        queryClient.invalidateQueries({ queryKey: ['gitGroup', variables.id] });
+      }
       setModalOpen(false);
       setEditingGroup(null);
       form.resetFields();
     },
   });
 
-  const handleEdit = (group: GitGroup) => {
+  const setSearch = (value: string) => {
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        if (value.trim()) next.set('q', value);
+        else next.delete('q');
+        return next;
+      },
+      { replace: true },
+    );
+  };
+
+  const handleEdit = (e: MouseEvent, group: GitGroup) => {
+    e.stopPropagation();
     setEditingGroup(group);
     form.setFieldsValue(group);
     setModalOpen(true);
@@ -90,119 +107,197 @@ const GitGroups = () => {
     setModalOpen(true);
   };
 
-  const handleRefresh = () => {
-    refetchGroups();
-    refetchWorkspace();
-  };
+  // Stabilize empty fallback — otherwise filtered useMemo recomputes every render while loading
+  const groups = useMemo(
+    () => data?.data?.items ?? [],
+    [data?.data?.items],
+  );
+  const filtered = useMemo(() => {
+    const q = searchQ.trim().toLowerCase();
+    if (!q) return groups;
+    return groups.filter(
+      (g) =>
+        g.name.toLowerCase().includes(q) ||
+        (g.description || '').toLowerCase().includes(q),
+    );
+  }, [groups, searchQ]);
 
-  const groups = data?.data?.items || [];
+  if (isError) {
+    return (
+      <PageContainer title="Git Groups">
+        <ErrorState error={error as Error} onRetry={() => refetchGroups()} />
+      </PageContainer>
+    );
+  }
 
   return (
     <PageContainer
       title="Git Groups"
+      subTitle="Organize repositories and AI contexts"
       extra={
-        <Space>
+        <Space wrap>
           <Button
             icon={<ReloadOutlined />}
-            onClick={handleRefresh}
-            loading={isFetching || workspaceFetching}
+            className="ldw-clickable"
+            onClick={() => refetchGroups()}
+            loading={isFetching}
+            aria-label="Refresh"
+            title="Refresh"
+          />
+          <Link to="/git/projects">
+            <Button className="ldw-clickable">Back to Projects</Button>
+          </Link>
+          <Button
+            type="primary"
+            icon={<PlusOutlined />}
+            className="ldw-clickable"
+            onClick={handleCreate}
           >
-            刷新
-          </Button>
-          <Button onClick={() => navigate('/git/projects')}>
-            返回项目列表
+            Create Group
           </Button>
         </Space>
       }
     >
+      <div className="git-groups-toolbar">
+        <Input.Search
+          allowClear
+          placeholder="Search groups…"
+          value={searchQ}
+          onChange={(e) => setSearch(e.target.value)}
+          onSearch={setSearch}
+          className="git-groups-toolbar__search"
+          aria-label="Search groups"
+        />
+      </div>
+
       {isLoading ? (
-        <div style={{ textAlign: 'center', padding: 60 }}><Spin /></div>
+        <LoadingSkeleton variant="cards" cards={4} />
       ) : groups.length === 0 ? (
-        <Empty description="暂无分组">
-          <Button type="primary" icon={<PlusOutlined />} onClick={handleCreate}>
-            创建分组
-          </Button>
-        </Empty>
+        <EmptyState
+          preset="folder"
+          title="No groups yet"
+          description="Create a group to organize projects and AI contexts."
+          action={{
+            text: 'Create Group',
+            icon: <PlusOutlined />,
+            onClick: handleCreate,
+          }}
+        />
+      ) : filtered.length === 0 ? (
+        <EmptyState
+          preset="search"
+          title="No matching groups"
+          description="Try a different search term."
+          action={{ text: 'Clear search', onClick: () => setSearch('') }}
+        />
       ) : (
-        <Space direction="vertical" size="middle" style={{ width: '100%' }}>
-          <Button type="primary" icon={<PlusOutlined />} onClick={handleCreate}>
-            Create Group
-          </Button>
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
-              gap: 16,
-            }}
-          >
-            {groups.map((g) => (
-              <Card
-                key={g.id}
-                hoverable
-                title={
-                  <a onClick={(e) => { e.stopPropagation(); navigate(`/git/groups/${g.id}`); }}>{g.name}</a>
+        <div className="git-card-grid">
+          {filtered.map((g) => (
+            <Card
+              key={g.id}
+              hoverable
+              className="git-group-card ldw-clickable"
+              role="link"
+              tabIndex={0}
+              aria-label={`Open group ${g.name}`}
+              onClick={() => navigate(`/git/groups/${g.id}`)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  navigate(`/git/groups/${g.id}`);
                 }
-                extra={
-                  <span onClick={(e) => e.stopPropagation()}>
-                    <Popconfirm
-                      title="确认删除此分组？"
-                      onConfirm={() => deleteMutation.mutate(g.id)}
-                    >
-                      <Button
-                        size="small"
-                        danger
-                        icon={<DeleteOutlined />}
-                      />
-                    </Popconfirm>
-                  </span>
-                }
-                onClick={() => handleEdit(g)}
-              >
-                <p style={{ color: '#8c8c8c', minHeight: 40 }}>
-                  {g.description || '暂无描述'}
-                </p>
-                <Space direction="vertical" size={4}>
-                  <Space size={12}>
-                    <Text>
-                      <strong>{g.projectCount}</strong> 个项目
-                    </Text>
-                    <Text>
-                      <strong>{contextCountByGroup[g.id] || 0}</strong> 个 Context
-                    </Text>
-                  </Space>
-                  <Text type="secondary" style={{ fontSize: 12 }}>
-                    <FolderOpenOutlined /> RAG: {shortenPath(g.ragPath) || '—'}
+              }}
+              title={<span className="git-group-card__title">{g.name}</span>}
+              extra={
+                <Space
+                  size={4}
+                  onClick={(e) => e.stopPropagation()}
+                  onKeyDown={(e) => e.stopPropagation()}
+                >
+                  <Button
+                    size="small"
+                    type="text"
+                    icon={<EditOutlined />}
+                    className="ldw-clickable"
+                    aria-label={`Edit ${g.name}`}
+                    title="Edit"
+                    onClick={(e) => handleEdit(e, g)}
+                  />
+                  <ConfirmButton
+                    size="small"
+                    type="text"
+                    danger
+                    icon={<DeleteOutlined />}
+                    confirmTitle="Delete this group?"
+                    confirmDescription="Projects stay registered; only the group is removed."
+                    okText="Delete"
+                    aria-label={`Delete ${g.name}`}
+                    onConfirm={async () => {
+                      await deleteMutation.mutateAsync(g.id);
+                    }}
+                  />
+                </Space>
+              }
+            >
+              <p className="git-group-card__desc">
+                {g.description || 'No description'}
+              </p>
+              <Space direction="vertical" size={4} className="git-group-card__meta">
+                <Space size={16} wrap>
+                  <Text>
+                    <strong>{g.projectCount}</strong> projects
                   </Text>
-                  <Text type="secondary" style={{ fontSize: 12 }}>
-                    <FolderOpenOutlined /> Index: {shortenPath(g.indexPath) || '—'}
+                  <Text>
+                    <strong>{g.contextCount ?? 0}</strong> contexts
                   </Text>
                 </Space>
-              </Card>
-            ))}
-          </div>
-        </Space>
+                <Text type="secondary" className="git-group-card__path">
+                  <FolderOpenOutlined aria-hidden /> RAG:{' '}
+                  {g.ragPath ? <PathText path={g.ragPath} /> : '—'}
+                </Text>
+                <Text type="secondary" className="git-group-card__path">
+                  <FolderOpenOutlined aria-hidden /> Index:{' '}
+                  {g.indexPath ? <PathText path={g.indexPath} /> : '—'}
+                </Text>
+              </Space>
+            </Card>
+          ))}
+        </div>
       )}
 
       <Modal
-        title={editingGroup ? '编辑分组' : '创建分组'}
+        title={editingGroup ? 'Edit Group' : 'Create Group'}
         open={modalOpen}
-        onOk={() => form.validateFields().then((v) => saveMutation.mutate({ id: editingGroup?.id, data: v }))}
-        onCancel={() => { setModalOpen(false); setEditingGroup(null); form.resetFields(); }}
+        onOk={() =>
+          form.validateFields().then((v) =>
+            saveMutation.mutate({ id: editingGroup?.id, data: v }),
+          )
+        }
+        onCancel={() => {
+          setModalOpen(false);
+          setEditingGroup(null);
+          form.resetFields();
+        }}
         confirmLoading={saveMutation.isPending}
-        destroyOnClose
+        destroyOnHidden
+        okText={editingGroup ? 'Save' : 'Create'}
       >
-        <Form form={form} layout="vertical" style={{ marginTop: 16 }}>
-          <Form.Item name="name" label="Name" rules={[{ required: true }]}>
+        <Form form={form} layout="vertical" className="git-form-gap">
+          <Form.Item
+            name="name"
+            label="Name"
+            rules={[{ required: true, message: 'Name is required' }]}
+          >
             <Input placeholder="e.g. Frontend" />
           </Form.Item>
           <Form.Item name="description" label="Description">
-            <Input placeholder="可选描述" />
+            <Input placeholder="Optional description" />
           </Form.Item>
           <Form.Item name="ragPath" label="RAG Path">
-            <Input placeholder="默认自动生成" />
+            <Input placeholder="Auto-generated if empty" />
           </Form.Item>
           <Form.Item name="indexPath" label="Index Path">
-            <Input placeholder="默认自动生成" />
+            <Input placeholder="Auto-generated if empty" />
           </Form.Item>
         </Form>
       </Modal>
