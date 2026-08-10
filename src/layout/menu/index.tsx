@@ -2,7 +2,7 @@ import { Menu as AntMenu } from 'antd';
 import type { MenuProps } from 'antd';
 import { layoutRoute } from '@/router/routes';
 import type { Route } from '@/router/types';
-import { useLocation, useNavigate } from 'react-router';
+import { useLocation, useNavigate, matchPath } from 'react-router';
 import { useEffect, useMemo, useState } from 'react';
 import './index.less';
 
@@ -20,7 +20,8 @@ const getMenuKey = (route: Route, index: number, parentKey: string) => {
   const routeKey = route.key ?? index;
 
   if (route.children?.length) {
-    return `group-${parentKey}-${routeKey}`;
+    // 有子路由的父级菜单直接用 path 作为 key，保证点击时可以导航
+    return route.path || `group-${parentKey}-${routeKey}`;
   }
 
   return route.path || `route-${parentKey}-${routeKey}`;
@@ -30,8 +31,20 @@ const sortRoutes = (routes: Route[]) => {
   return [...routes].sort((a, b) => (a.key ?? 0) - (b.key ?? 0));
 };
 
-const isPathMatch = (routePath: string, pathname: string) => {
-  return pathname === routePath || pathname.startsWith(`${routePath}/`);
+/**
+ * 检查路由是否匹配当前路径，返回匹配长度（-1 表示不匹配）
+ * 使用 react-router 的 matchPath 支持参数化路径（:id 等）
+ */
+const getRouteMatchLength = (route: Route, pathname: string, parentPath?: string): number => {
+  if (route.index) {
+    // index 路由匹配父级路径
+    return parentPath && pathname === parentPath ? parentPath.length : -1;
+  }
+  if (route.path) {
+    const matched = matchPath(route.path, pathname);
+    return matched ? route.path.length : -1;
+  }
+  return -1;
 };
 
 const buildMenuItems = (routes: Route[], parentKey: string): AntdMenuItems => {
@@ -57,7 +70,8 @@ const findActiveMenuState = (
   routes: Route[],
   pathname: string,
   parentKey: string,
-  ancestorKeys: string[] = []
+  ancestorKeys: string[] = [],
+  parentPath?: string,
 ): ActiveMenuState => {
   let bestMatch: ActiveMenuState = {
     selectedKey: undefined,
@@ -67,27 +81,30 @@ const findActiveMenuState = (
 
   sortRoutes(routes).forEach((route, index) => {
     const key = getMenuKey(route, index, parentKey);
+    // 当前层级路由的 path；有子路由时作为子级的 parentPath
+    const currentParentPath = route.path || parentPath;
 
     if (route.children?.length) {
-      const childMatch = findActiveMenuState(route.children, pathname, key, [
-        ...ancestorKeys,
+      const childMatch = findActiveMenuState(
+        route.children,
+        pathname,
         key,
-      ]);
+        [...ancestorKeys, key],
+        currentParentPath,
+      );
       if (childMatch.matchedPathLength > bestMatch.matchedPathLength) {
         bestMatch = childMatch;
       }
       return;
     }
 
-    if (
-      route.path &&
-      isPathMatch(route.path, pathname) &&
-      route.path.length > bestMatch.matchedPathLength
-    ) {
+    // 叶子路由匹配（支持 index 路由和参数化路径）
+    const matchLen = getRouteMatchLength(route, pathname, parentPath);
+    if (matchLen > bestMatch.matchedPathLength) {
       bestMatch = {
         selectedKey: key,
         openKeys: ancestorKeys,
-        matchedPathLength: route.path.length,
+        matchedPathLength: matchLen,
       };
     }
   });

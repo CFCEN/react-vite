@@ -1,20 +1,34 @@
 import { createElement } from 'react';
 import Layout from '@/layout';
 import { createBrowserRouter, Navigate, type RouteObject } from 'react-router';
-import userRoutes from './user';
-import homeRoutes from './home';
 import cardRoutes from './card';
+import dashboardRoutes from './modules/dashboard';
+import configurationRoutes from './modules/configurations';
+import logRoutes from './modules/logs';
+import applicationRoutes from './modules/applications';
+import gitRoutes from './modules/git';
+import workspaceRoutes from './modules/workspace';
+import settingsRoutes from './modules/settings';
 
 import type { Route } from '@/router/types';
+
 /**
- * 根路由配置
- * children: 都是一级路由
- * 注意：根路由代表的是一个具体的app，例如：小星云平台，物联网平台，等等
+ * layoutRoute: 所有需要侧边栏布局的一级路由
+ * children 中的每个 Route 按 key 排序后作为菜单项
  */
 export const layoutRoute: Route = {
   path: '/',
   Component: Layout,
-  children: [userRoutes, homeRoutes, cardRoutes],
+  children: [
+    dashboardRoutes,
+    configurationRoutes,
+    logRoutes,
+    applicationRoutes,
+    gitRoutes,
+    workspaceRoutes,
+    cardRoutes,
+    settingsRoutes,
+  ],
   name: 'layout',
   showInMenu: false,
 };
@@ -22,7 +36,7 @@ export const layoutRoute: Route = {
 export const rootRoutes: Route[] = [
   {
     path: '/',
-    element: createElement(Navigate, { to: '/home/info', replace: true }),
+    element: createElement(Navigate, { to: '/dashboard', replace: true }),
     name: 'rootRedirect',
     showInMenu: false,
   },
