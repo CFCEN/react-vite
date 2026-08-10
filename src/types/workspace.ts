@@ -24,9 +24,7 @@ export interface WorkspaceOverview {
 
 /** 创建 Context 请求 */
 export interface CreateContextRequest {
-  name?: string;
-  ragPath: string;
-  indexPath: string;
+  name: string;
 }
 
 /** 修改 Context 请求 */

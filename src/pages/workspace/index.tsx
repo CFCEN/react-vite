@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
-import { Card, Tag, Spin, Empty, Typography, Table } from 'antd';
-import { FolderOpenOutlined } from '@ant-design/icons';
+import { Button, Card, Tag, Spin, Empty, Typography, Table } from 'antd';
+import { FolderOpenOutlined, ReloadOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { workspaceApi } from '@/api/workspaceApi';
 import type { ProjectContext } from '@/types/workspace';
@@ -52,7 +52,7 @@ const contextColumns: ColumnsType<ProjectContext> = [
 ];
 
 const WorkspaceIndex = () => {
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isFetching, refetch } = useQuery({
     queryKey: ['workspace'],
     queryFn: () => workspaceApi.overview(),
   });
@@ -62,7 +62,14 @@ const WorkspaceIndex = () => {
   if (isLoading) return <Spin />;
 
   return (
-    <PageContainer title="Workspace · Index">
+    <PageContainer
+      title="Workspace · Index"
+      extra={
+        <Button icon={<ReloadOutlined />} onClick={() => refetch()} loading={isFetching}>
+          刷新
+        </Button>
+      }
+    >
       <Card title="Index Directories" style={{ marginBottom: 16 }}>
         {!overview?.indexDirs.length ? (
           <Empty description="暂无 Index 目录" image={Empty.PRESENTED_IMAGE_SIMPLE}>

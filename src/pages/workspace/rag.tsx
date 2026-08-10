@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
-import { Card, Descriptions, Tag, Spin, Empty, Typography } from 'antd';
-import { FolderOpenOutlined } from '@ant-design/icons';
+import { Button, Card, Descriptions, Tag, Spin, Empty, Typography } from 'antd';
+import { FolderOpenOutlined, ReloadOutlined } from '@ant-design/icons';
 import { workspaceApi } from '@/api/workspaceApi';
 import type { IndexStatus } from '@/types/workspace';
 import PageContainer from '@/components/PageContainer';
@@ -20,7 +20,7 @@ const getIndexStatusTag = (status: IndexStatus) => {
 };
 
 const WorkspaceRag = () => {
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isFetching, refetch } = useQuery({
     queryKey: ['workspace'],
     queryFn: () => workspaceApi.overview(),
   });
@@ -30,7 +30,14 @@ const WorkspaceRag = () => {
   if (isLoading) return <Spin />;
 
   return (
-    <PageContainer title="Workspace · RAG">
+    <PageContainer
+      title="Workspace · RAG"
+      extra={
+        <Button icon={<ReloadOutlined />} onClick={() => refetch()} loading={isFetching}>
+          刷新
+        </Button>
+      }
+    >
       <Card title="RAG Directories" style={{ marginBottom: 16 }}>
         {overview?.ragDirs.length === 0 ? (
           <Empty description="暂无 RAG 目录" image={Empty.PRESENTED_IMAGE_SIMPLE} />

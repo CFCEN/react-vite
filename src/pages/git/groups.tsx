@@ -17,6 +17,7 @@ import {
   EditOutlined,
   DeleteOutlined,
   FolderOpenOutlined,
+  ReloadOutlined,
 } from '@ant-design/icons';
 import { useState } from 'react';
 import { useNavigate } from 'react-router';
@@ -36,13 +37,17 @@ const GitGroups = () => {
   const [editingGroup, setEditingGroup] = useState<GitGroup | null>(null);
   const [form] = Form.useForm();
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isFetching, refetch: refetchGroups } = useQuery({
     queryKey: ['gitGroups'],
     queryFn: () => gitApi.listGroups(),
   });
 
   // 获取所有 context 用于统计每个分组的 context 数量
-  const { data: workspaceData } = useQuery({
+  const {
+    data: workspaceData,
+    isFetching: workspaceFetching,
+    refetch: refetchWorkspace,
+  } = useQuery({
     queryKey: ['workspace'],
     queryFn: () => workspaceApi.overview(),
   });
@@ -85,15 +90,29 @@ const GitGroups = () => {
     setModalOpen(true);
   };
 
+  const handleRefresh = () => {
+    refetchGroups();
+    refetchWorkspace();
+  };
+
   const groups = data?.data?.items || [];
 
   return (
     <PageContainer
       title="Git Groups"
       extra={
-        <Button onClick={() => navigate('/git/projects')}>
-          返回项目列表
-        </Button>
+        <Space>
+          <Button
+            icon={<ReloadOutlined />}
+            onClick={handleRefresh}
+            loading={isFetching || workspaceFetching}
+          >
+            刷新
+          </Button>
+          <Button onClick={() => navigate('/git/projects')}>
+            返回项目列表
+          </Button>
+        </Space>
       }
     >
       {isLoading ? (

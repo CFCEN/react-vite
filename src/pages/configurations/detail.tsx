@@ -16,6 +16,7 @@ import {
   EditOutlined,
   CloseOutlined,
   CheckOutlined,
+  ReloadOutlined,
 } from '@ant-design/icons';
 import { useEffect, useState } from 'react';
 import CodeMirror from '@uiw/react-codemirror';
@@ -59,7 +60,7 @@ const ConfigDetail = () => {
   const [editingMeta, setEditingMeta] = useState(false);
   const [metaForm] = Form.useForm();
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isFetching, refetch } = useQuery({
     queryKey: ['configFile', id],
     queryFn: () => configApi.getById(Number(id)),
     enabled: !!id,
@@ -156,6 +157,14 @@ const ConfigDetail = () => {
       title={config.name}
       extra={
         <Space>
+          <Button
+            icon={<ReloadOutlined />}
+            onClick={() => refetch()}
+            loading={isFetching}
+            disabled={isDirty}
+          >
+            刷新
+          </Button>
           <Button
             icon={<ArrowLeftOutlined />}
             onClick={() => navigate('/configurations')}

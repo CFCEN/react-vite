@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation } from '@tanstack/react-query';
 import { useParams, useNavigate } from 'react-router';
 import {
   Descriptions,
@@ -20,11 +20,9 @@ import {
   DownOutlined,
   EditOutlined,
 } from '@ant-design/icons';
-import { useCallback } from 'react';
 import { applicationApi } from '@/api/applicationApi';
 import { getApplicationStatusInfo, formatDateTime } from '@/utils/format';
 import { usePolling } from '@/hooks/usePolling';
-import type { ApplicationStatusInfo } from '@/types/application';
 import PageContainer from '@/components/PageContainer';
 import './index.less';
 
@@ -33,16 +31,24 @@ const { Text } = Typography;
 const ApplicationDetail = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
   const { message } = App.useApp();
 
-  const { data: appData, isLoading } = useQuery({
+  const {
+    data: appData,
+    isLoading,
+    isFetching: appFetching,
+    refetch: refetchApp,
+  } = useQuery({
     queryKey: ['application', id],
     queryFn: () => applicationApi.getById(Number(id)),
     enabled: !!id,
   });
 
-  const { data: statusData, refetch: refetchStatus } = useQuery({
+  const {
+    data: statusData,
+    refetch: refetchStatus,
+    isFetching: statusFetching,
+  } = useQuery({
     queryKey: ['applicationStatus', id],
     queryFn: () => applicationApi.status(Number(id)),
     enabled: !!id,
@@ -86,6 +92,12 @@ const ApplicationDetail = () => {
   const isRunning = status?.status === 'RUNNING';
   const isTransitioning = status?.status === 'STARTING' || status?.status === 'STOPPING';
   const busy = startMutation.isPending || stopMutation.isPending || restartMutation.isPending;
+  const refreshing = appFetching || statusFetching;
+
+  const handleRefresh = () => {
+    refetchApp();
+    refetchStatus();
+  };
 
   const cmds = app?.commands || [];
   const hasMulti = cmds.length > 1;
@@ -308,6 +320,13 @@ const ApplicationDetail = () => {
       title={app.name}
       extra={
         <Space>
+          <Button
+            icon={<ReloadOutlined />}
+            onClick={handleRefresh}
+            loading={refreshing}
+          >
+            刷新
+          </Button>
           {isRunning ? (
             <>
               <Button

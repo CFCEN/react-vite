@@ -1,10 +1,11 @@
 import { useQuery } from '@tanstack/react-query';
-import { Card, Col, Row, Statistic, Tag, Typography, Spin, Empty } from 'antd';
+import { Button, Card, Col, Row, Statistic, Tag, Typography, Spin, Empty } from 'antd';
 import {
   CodeOutlined,
   BranchesOutlined,
   FileTextOutlined,
   SettingOutlined,
+  ReloadOutlined,
 } from '@ant-design/icons';
 import { applicationApi } from '@/api/applicationApi';
 import { gitApi } from '@/api/gitApi';
@@ -45,9 +46,29 @@ const Dashboard = () => {
     logFilesQuery.isLoading &&
     configsQuery.isLoading;
 
+  const refreshing =
+    appsQuery.isFetching ||
+    projectsQuery.isFetching ||
+    logFilesQuery.isFetching ||
+    configsQuery.isFetching;
+
+  const handleRefresh = () => {
+    appsQuery.refetch();
+    projectsQuery.refetch();
+    logFilesQuery.refetch();
+    configsQuery.refetch();
+  };
+
   if (loading) {
     return (
-      <PageContainer title="Dashboard">
+      <PageContainer
+      title="Dashboard"
+      extra={
+        <Button icon={<ReloadOutlined />} onClick={handleRefresh} loading={refreshing}>
+          刷新
+        </Button>
+      }
+    >
         <div className="dashboard-loading">
           <Spin size="large" tip="加载中..." />
         </div>
@@ -67,7 +88,14 @@ const Dashboard = () => {
   });
 
   return (
-    <PageContainer title="Dashboard">
+    <PageContainer
+      title="Dashboard"
+      extra={
+        <Button icon={<ReloadOutlined />} onClick={handleRefresh} loading={refreshing}>
+          刷新
+        </Button>
+      }
+    >
       <div className="dashboard">
         {/* 统计卡片行 */}
         <Row gutter={[16, 16]} className="dashboard-stats">

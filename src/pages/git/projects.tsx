@@ -20,6 +20,7 @@ import {
   DeleteOutlined,
   EyeOutlined,
   FolderOpenOutlined,
+  ReloadOutlined,
 } from '@ant-design/icons';
 import { useState } from 'react';
 import type { ColumnsType } from 'antd/es/table';
@@ -50,18 +51,27 @@ const GitProjects = () => {
   const [activeTab, setActiveTab] = useState('projects');
   const [selectedGroup, setSelectedGroup] = useState<GitGroup | null>(null);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isFetching, refetch: refetchProjects } = useQuery({
     queryKey: ['gitProjects'],
     queryFn: () => gitApi.listProjects(),
   });
 
-  const { data: groupsData } = useQuery({
+  const {
+    data: groupsData,
+    isFetching: groupsFetching,
+    refetch: refetchGroups,
+  } = useQuery({
     queryKey: ['gitGroups'],
     queryFn: () => gitApi.listGroups(),
   });
 
   // 按分组查询项目（选中分组时触发）
-  const { data: groupProjectsData, isLoading: groupProjectsLoading } = useQuery({
+  const {
+    data: groupProjectsData,
+    isLoading: groupProjectsLoading,
+    isFetching: groupProjectsFetching,
+    refetch: refetchGroupProjects,
+  } = useQuery({
     queryKey: ['gitGroupProjects', selectedGroup?.id],
     queryFn: () => gitApi.listProjectsByGroup(selectedGroup!.id),
     enabled: !!selectedGroup,
@@ -119,6 +129,14 @@ const GitProjects = () => {
     setSelectedRowKeys(keys);
     setSelectGroupId(undefined);
     setGroupModalOpen(true);
+  };
+
+  const handleRefresh = () => {
+    refetchProjects();
+    refetchGroups();
+    if (selectedGroup) {
+      refetchGroupProjects();
+    }
   };
 
   const groups: GitGroup[] = groupsData?.data?.items || [];
@@ -470,7 +488,16 @@ const GitProjects = () => {
     <PageContainer
       title="Git Projects"
       extra={
-        <Button onClick={() => navigate('/git/groups')}>管理分组</Button>
+        <Space>
+          <Button
+            icon={<ReloadOutlined />}
+            onClick={handleRefresh}
+            loading={isFetching || groupsFetching || groupProjectsFetching}
+          >
+            刷新
+          </Button>
+          <Button onClick={() => navigate('/git/groups')}>管理分组</Button>
+        </Space>
       }
     >
       <Tabs activeKey={activeTab} onChange={setActiveTab} items={tabItems} />

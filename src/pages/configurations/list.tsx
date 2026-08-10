@@ -10,7 +10,7 @@ import {
   App,
   Popconfirm,
 } from 'antd';
-import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
+import { PlusOutlined, EditOutlined, DeleteOutlined, ReloadOutlined } from '@ant-design/icons';
 import { useState } from 'react';
 import type { ColumnsType } from 'antd/es/table';
 import { useNavigate } from 'react-router';
@@ -28,7 +28,7 @@ const ConfigList = () => {
   const [modalOpen, setModalOpen] = useState(false);
   const [form] = Form.useForm<CreateConfigRequest>();
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isFetching, refetch } = useQuery({
     queryKey: ['configFiles'],
     queryFn: () => configApi.list(),
   });
@@ -131,13 +131,18 @@ const ConfigList = () => {
     <PageContainer
       title="Configurations"
       extra={
-        <Button
-          type="primary"
-          icon={<PlusOutlined />}
-          onClick={() => setModalOpen(true)}
-        >
-          Add Config
-        </Button>
+        <Space>
+          <Button icon={<ReloadOutlined />} onClick={() => refetch()} loading={isFetching}>
+            刷新
+          </Button>
+          <Button
+            type="primary"
+            icon={<PlusOutlined />}
+            onClick={() => setModalOpen(true)}
+          >
+            Add Config
+          </Button>
+        </Space>
       }
     >
       <Table

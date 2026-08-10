@@ -24,6 +24,7 @@ import {
   DeleteOutlined,
   FileTextOutlined,
   FileAddOutlined,
+  ReloadOutlined,
 } from '@ant-design/icons';
 import { useState, useEffect } from 'react';
 import type { ColumnsType } from 'antd/es/table';
@@ -57,7 +58,12 @@ const GitGroupDetail = () => {
   const [saving, setSaving] = useState(false);
 
   // 文件列表查询
-  const { data: filesData, isLoading: filesLoading, refetch: refetchFiles } = useQuery({
+  const {
+    data: filesData,
+    isLoading: filesLoading,
+    isFetching: filesFetching,
+    refetch: refetchFiles,
+  } = useQuery({
     queryKey: ['gitContextFiles', docContext?.id, docTab],
     queryFn: () =>
       gitApi.listContextFiles(docContext!.groupId, docContext!.id, docTab),
@@ -65,7 +71,11 @@ const GitGroupDetail = () => {
   });
 
   // 读取文件内容
-  const { data: fileContentData, refetch: refetchContent } = useQuery({
+  const {
+    data: fileContentData,
+    isFetching: contentFetching,
+    refetch: refetchContent,
+  } = useQuery({
     queryKey: ['gitContextFileContent', docContext?.id, docTab, selectedFile],
     queryFn: () =>
       gitApi.getContextFileContent(docContext!.groupId, docContext!.id, docTab, selectedFile!),
@@ -152,26 +162,36 @@ const GitGroupDetail = () => {
     setEditingContent('');
   };
 
-  const { data: groupData, isLoading } = useQuery({
+  const { data: groupData, isLoading, isFetching: groupFetching, refetch: refetchGroup } = useQuery({
     queryKey: ['gitGroup', id],
     queryFn: () => gitApi.getGroupById(groupId),
     enabled: !!id,
   });
 
-  const { data: projectsData, isLoading: projectsLoading } = useQuery({
+  const {
+    data: projectsData,
+    isLoading: projectsLoading,
+    isFetching: projectsFetching,
+    refetch: refetchProjects,
+  } = useQuery({
     queryKey: ['gitGroupProjects', groupId],
     queryFn: () => gitApi.listProjectsByGroup(groupId),
     enabled: !!id,
   });
 
-  const { data: contextsData, isLoading: contextsLoading } = useQuery({
+  const {
+    data: contextsData,
+    isLoading: contextsLoading,
+    isFetching: contextsFetching,
+    refetch: refetchContexts,
+  } = useQuery({
     queryKey: ['gitContexts', groupId],
     queryFn: () => gitApi.listContexts(groupId),
     enabled: !!id,
   });
 
   const createContextMutation = useMutation({
-    mutationFn: (values: { name: string; ragPath: string; indexPath: string }) =>
+    mutationFn: (values: { name: string }) =>
       gitApi.createContext(groupId, values),
     onSuccess: () => {
       message.success('Context 已创建');
@@ -227,7 +247,7 @@ const GitGroupDetail = () => {
       if (editingContext) {
         updateContextMutation.mutate({ contextId: editingContext.id, values });
       } else {
-        createContextMutation.mutate(values);
+        createContextMutation.mutate({ name: values.name });
       }
     });
   };
@@ -249,6 +269,19 @@ const GitGroupDetail = () => {
       </PageContainer>
     );
   }
+
+  const handleRefresh = () => {
+    refetchGroup();
+    refetchProjects();
+    refetchContexts();
+  };
+
+  const handleRefreshDocs = () => {
+    refetchFiles();
+    if (selectedFile && !isNewFile) {
+      refetchContent();
+    }
+  };
 
   const groupProjects: GitProjectItem[] = projectsData?.data?.items || [];
   const contexts: ProjectContext[] = contextsData?.data?.items || [];
@@ -366,9 +399,18 @@ const GitGroupDetail = () => {
     <PageContainer
       title={group.name}
       extra={
-        <Button icon={<ArrowLeftOutlined />} onClick={() => navigate('/git/groups')}>
-          返回
-        </Button>
+        <Space>
+          <Button
+            icon={<ReloadOutlined />}
+            onClick={handleRefresh}
+            loading={groupFetching || projectsFetching || contextsFetching}
+          >
+            刷新
+          </Button>
+          <Button icon={<ArrowLeftOutlined />} onClick={() => navigate('/git/groups')}>
+            返回
+          </Button>
+        </Space>
       }
     >
       <Space direction="vertical" size="middle" style={{ width: '100%' }}>
@@ -457,23 +499,36 @@ const GitGroupDetail = () => {
         width={560}
       >
         <Form form={contextForm} layout="vertical" style={{ marginTop: 16 }}>
-          <Form.Item name="name" label="名称">
-            <Input placeholder="如：前端代码、后端 API（可选）" />
-          </Form.Item>
           <Form.Item
-            name="ragPath"
-            label="RAG Path"
-            rules={[{ required: true, message: '请输入 RAG 路径' }]}
+            name="name"
+            label="名称"
+            rules={[{ required: true, message: '请输入 Context 名称' }]}
+            extra={
+              editingContext
+                ? undefined
+                : '创建时会自动使用分组的 RAG Path / Index Path 加上该名称生成目录。'
+            }
           >
-            <Input placeholder="/workspace/rag/frontend" />
+            <Input placeholder="如：deployment" />
           </Form.Item>
-          <Form.Item
-            name="indexPath"
-            label="Index Path"
-            rules={[{ required: true, message: '请输入 Index 路径' }]}
-          >
-            <Input placeholder="/workspace/index/frontend" />
-          </Form.Item>
+          {editingContext && (
+            <>
+              <Form.Item
+                name="ragPath"
+                label="RAG Path"
+                rules={[{ required: true, message: '请输入 RAG 路径' }]}
+              >
+                <Input placeholder="/workspace/rag/frontend" />
+              </Form.Item>
+              <Form.Item
+                name="indexPath"
+                label="Index Path"
+                rules={[{ required: true, message: '请输入 Index 路径' }]}
+              >
+                <Input placeholder="/workspace/index/frontend" />
+              </Form.Item>
+            </>
+          )}
         </Form>
       </Modal>
 
@@ -519,15 +574,24 @@ const GitGroupDetail = () => {
                 ]}
               />
               <div style={{ marginBottom: 8 }}>
-                <Button
-                  type="dashed"
+                <Space.Compact style={{ width: '100%' }}>
+                  <Button
+                    icon={<ReloadOutlined />}
+                    onClick={handleRefreshDocs}
+                    loading={filesFetching || contentFetching}
+                  >
+                    刷新
+                  </Button>
+                  <Button
+                    type="dashed"
                   size="small"
                   icon={<FileAddOutlined />}
                   onClick={handleNewFile}
-                  block
-                >
-                  新建文档
-                </Button>
+                    style={{ flex: 1 }}
+                  >
+                    新建文档
+                  </Button>
+                </Space.Compact>
               </div>
               <List
                 size="small"

@@ -41,7 +41,7 @@ const ApplicationList = () => {
   const { message: appMessage } = App.useApp();
   const [runtimeMap, setRuntimeMap] = useState<Record<number, RuntimeInfo>>({});
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isFetching, refetch } = useQuery({
     queryKey: ['applications'],
     queryFn: () => applicationApi.list(),
   });
@@ -105,6 +105,11 @@ const ApplicationList = () => {
   }, [data]);
 
   usePolling(pollStatus, 5000, true);
+
+  const handleRefresh = useCallback(() => {
+    refetch();
+    pollStatus();
+  }, [pollStatus, refetch]);
 
   const items = data?.data?.items || [];
 
@@ -298,13 +303,22 @@ const ApplicationList = () => {
     <PageContainer
       title="Applications"
       extra={
-        <Button
-          type="primary"
-          icon={<PlusOutlined />}
-          onClick={() => navigate('/applications/new')}
-        >
-          Add Application
-        </Button>
+        <Space>
+          <Button
+            icon={<ReloadOutlined />}
+            onClick={handleRefresh}
+            loading={isFetching}
+          >
+            刷新
+          </Button>
+          <Button
+            type="primary"
+            icon={<PlusOutlined />}
+            onClick={() => navigate('/applications/new')}
+          >
+            Add Application
+          </Button>
+        </Space>
       }
     >
       <Table

@@ -17,6 +17,7 @@ import {
   EditOutlined,
   CloseOutlined,
   CheckOutlined,
+  ReloadOutlined,
 } from '@ant-design/icons';
 import { useState } from 'react';
 import { gitApi } from '@/api/gitApi';
@@ -35,7 +36,7 @@ const GitProjectDetail = () => {
   const [editingContext, setEditingContext] = useState(false);
   const [contextForm] = Form.useForm();
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isFetching, refetch } = useQuery({
     queryKey: ['gitProject', id],
     queryFn: () => gitApi.getProjectById(Number(id)),
     enabled: !!id,
@@ -96,12 +97,17 @@ const GitProjectDetail = () => {
     <PageContainer
       title={project.name}
       extra={
-        <Button
-          icon={<ArrowLeftOutlined />}
-          onClick={() => navigate('/git/projects')}
-        >
-          返回
-        </Button>
+        <Space>
+          <Button icon={<ReloadOutlined />} onClick={() => refetch()} loading={isFetching}>
+            刷新
+          </Button>
+          <Button
+            icon={<ArrowLeftOutlined />}
+            onClick={() => navigate('/git/projects')}
+          >
+            返回
+          </Button>
+        </Space>
       }
     >
       <Space direction="vertical" size="middle" style={{ width: '100%' }}>
