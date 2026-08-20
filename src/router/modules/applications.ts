@@ -2,7 +2,7 @@ import type { Route } from '@/router/types';
 import { CodeOutlined } from '@ant-design/icons';
 import { createElement, lazy } from 'react';
 
-const ApplicationList = lazy(() => import('@/pages/applications/list'));
+const ApplicationList = lazy(() => import('@/pages/applications'));
 const ApplicationForm = lazy(() => import('@/pages/applications/form'));
 const ApplicationDetail = lazy(() => import('@/pages/applications/detail'));
 

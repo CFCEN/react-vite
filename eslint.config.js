@@ -10,7 +10,7 @@ import tseslint from 'typescript-eslint';
 /**
  * Flat config for ESLint 10.
  *
- * Migration notes vs legacy `.eslintrc.cjs`:
+ * Migration notes vs the removed legacy `.eslintrc.cjs`:
  * - Dropped unavailable packages (@tencent/eslint-config-tencent, eslint-plugin-react,
  *   eslint-plugin-simple-import-sort, eslint-plugin-prettier) — not in package.json.
  * - eslint-plugin-node has no flat-config support and targets ESLint <=8; skipped.
@@ -27,9 +27,6 @@ export default defineConfig([
     '.history/**',
     'public/**',
     '**/*.d.ts',
-    // Legacy eslintrc (kept on disk until confirmed removable; flat config is source of truth)
-    '.eslintrc.cjs',
-    '.eslintignore',
     // Frozen / do-not-touch areas
     'src/pages/card/**',
     'src/router/card/**',

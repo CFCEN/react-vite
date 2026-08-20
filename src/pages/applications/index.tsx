@@ -13,7 +13,11 @@ import {
 } from '@ant-design/icons';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import { applicationApi } from '@/api/applicationApi';
-import type { ApplicationItem, ApplicationStatus, ApplicationStatusInfo } from '@/types/application';
+import type {
+  ApplicationItem,
+  ApplicationStatus,
+  ApplicationStatusInfo,
+} from '@/types/application';
 import { PROCESS_STATUS_LABEL } from '@/types/application';
 import { usePolling } from '@/hooks';
 import {
@@ -44,7 +48,9 @@ const ApplicationList = () => {
   const q = searchParams.get('q') ?? '';
   const statusFilter = searchParams.get('status') ?? 'all';
 
-  const [runtimeMap, setRuntimeMap] = useState<Record<number, ApplicationStatusInfo>>({});
+  const [runtimeMap, setRuntimeMap] = useState<
+    Record<number, ApplicationStatusInfo>
+  >({});
 
   const listQuery = useQuery({
     queryKey: ['applications'],
@@ -54,7 +60,7 @@ const ApplicationList = () => {
   // Stabilize empty fallback — otherwise filtered useMemo recomputes every render while loading
   const items = useMemo(
     () => listQuery.data?.data?.items ?? [],
-    [listQuery.data?.data?.items],
+    [listQuery.data?.data?.items]
   );
 
   const syncSearchParams = useCallback(
@@ -62,18 +68,21 @@ const ApplicationList = () => {
       setSearchParams(
         (prev) => {
           const params = new URLSearchParams(prev);
-          const qVal = next.q !== undefined ? next.q : params.get('q') ?? '';
-          const stVal = next.status !== undefined ? next.status : params.get('status') ?? 'all';
+          const qVal = next.q !== undefined ? next.q : (params.get('q') ?? '');
+          const stVal =
+            next.status !== undefined
+              ? next.status
+              : (params.get('status') ?? 'all');
           if (qVal.trim()) params.set('q', qVal.trim());
           else params.delete('q');
           if (stVal && stVal !== 'all') params.set('status', stVal);
           else params.delete('status');
           return params;
         },
-        { replace: true },
+        { replace: true }
       );
     },
-    [setSearchParams],
+    [setSearchParams]
   );
 
   const pollStatus = useCallback(async () => {
@@ -83,7 +92,9 @@ const ApplicationList = () => {
       return;
     }
     try {
-      const statuses = await applicationApi.listStatus(current.map((i) => i.id));
+      const statuses = await applicationApi.listStatus(
+        current.map((i) => i.id)
+      );
       const next: Record<number, ApplicationStatusInfo> = {};
       for (const s of statuses) {
         next[s.id] = s;
@@ -154,7 +165,7 @@ const ApplicationList = () => {
       restartMutation.variables,
       deleteMutation.isPending,
       deleteMutation.variables,
-    ],
+    ]
   );
 
   const confirmRestart = useCallback(
@@ -169,7 +180,7 @@ const ApplicationList = () => {
         onOk: () => restartMutation.mutateAsync({ id, commandName }),
       });
     },
-    [modal, restartMutation],
+    [modal, restartMutation]
   );
 
   const filteredItems = useMemo(() => {
@@ -178,7 +189,9 @@ const ApplicationList = () => {
       const status = runtimeMap[item.id]?.status ?? 'STOPPED';
       if (statusFilter !== 'all' && status !== statusFilter) return false;
       if (!needle) return true;
-      const cmdBlob = (item.commands ?? []).map((c) => `${c.name} ${c.command}`).join(' ');
+      const cmdBlob = (item.commands ?? [])
+        .map((c) => `${c.name} ${c.command}`)
+        .join(' ');
       return (
         item.name.toLowerCase().includes(needle) ||
         (item.description || '').toLowerCase().includes(needle) ||
@@ -210,7 +223,8 @@ const ApplicationList = () => {
         title: 'Status',
         width: 120,
         render: (_value, record) => {
-          const status = (runtimeMap[record.id]?.status ?? 'STOPPED') as ApplicationStatus;
+          const status = (runtimeMap[record.id]?.status ??
+            'STOPPED') as ApplicationStatus;
           return (
             <StatusTag
               status={status}
@@ -280,7 +294,8 @@ const ApplicationList = () => {
           const rt = runtimeMap[record.id];
           const status = rt?.status ?? 'STOPPED';
           const isRunning = status === 'RUNNING';
-          const isTransitioning = status === 'STARTING' || status === 'STOPPING';
+          const isTransitioning =
+            status === 'STARTING' || status === 'STOPPING';
           const busy = rowBusy(record.id);
           const cmds = record.commands ?? [];
           const hasMulti = cmds.length > 1;
@@ -291,8 +306,12 @@ const ApplicationList = () => {
                   key: c.name,
                   label: (
                     <span className="app-menu-cmd">
-                      <strong>{c.name}</strong>
-                      <span className="app-menu-cmd__code">{c.command}</span>
+                      <Tooltip
+                        title={`Command: ${c.command}`}
+                        placement="right"
+                      >
+                        <strong>{c.name}</strong>
+                      </Tooltip>
                     </span>
                   ),
                 })),
@@ -312,7 +331,8 @@ const ApplicationList = () => {
                     </span>
                   ),
                 })),
-                onClick: ({ key }: { key: string }) => confirmRestart(record.id, key),
+                onClick: ({ key }: { key: string }) =>
+                  confirmRestart(record.id, key),
               }
             : undefined;
 
@@ -326,7 +346,10 @@ const ApplicationList = () => {
                     confirmTitle="Stop this application?"
                     confirmDescription="The running process will be terminated."
                     okText="Stop"
-                    loading={stopMutation.isPending && stopMutation.variables === record.id}
+                    loading={
+                      stopMutation.isPending &&
+                      stopMutation.variables === record.id
+                    }
                     disabled={busy}
                     onConfirm={async () => {
                       await stopMutation.mutateAsync(record.id);
@@ -354,7 +377,8 @@ const ApplicationList = () => {
                       confirmDescription="The process will be stopped and started again."
                       okText="Restart"
                       loading={
-                        restartMutation.isPending && restartMutation.variables?.id === record.id
+                        restartMutation.isPending &&
+                        restartMutation.variables?.id === record.id
                       }
                       disabled={busy}
                       onConfirm={async () => {
@@ -368,14 +392,18 @@ const ApplicationList = () => {
               ) : (
                 <>
                   {hasMulti ? (
-                    <Dropdown menu={startMenu} disabled={busy || isTransitioning}>
+                    <Dropdown
+                      menu={startMenu}
+                      disabled={busy || isTransitioning}
+                    >
                       <Button
                         size="small"
                         type="primary"
                         icon={<PlayCircleOutlined />}
                         disabled={busy || isTransitioning}
                         loading={
-                          startMutation.isPending && startMutation.variables?.id === record.id
+                          startMutation.isPending &&
+                          startMutation.variables?.id === record.id
                         }
                         className="ldw-clickable"
                         aria-label="Start"
@@ -391,7 +419,8 @@ const ApplicationList = () => {
                       className="ldw-clickable"
                       onClick={() => startMutation.mutate({ id: record.id })}
                       loading={
-                        startMutation.isPending && startMutation.variables?.id === record.id
+                        startMutation.isPending &&
+                        startMutation.variables?.id === record.id
                       }
                       disabled={busy || isTransitioning}
                       aria-label="Start"
@@ -426,7 +455,10 @@ const ApplicationList = () => {
                 confirmTitle="Delete this application?"
                 confirmDescription="If it is running, it will be stopped first. This cannot be undone."
                 okText="Delete"
-                loading={deleteMutation.isPending && deleteMutation.variables === record.id}
+                loading={
+                  deleteMutation.isPending &&
+                  deleteMutation.variables === record.id
+                }
                 disabled={busy}
                 onConfirm={async () => {
                   await deleteMutation.mutateAsync(record.id);
@@ -446,7 +478,7 @@ const ApplicationList = () => {
       restartMutation,
       deleteMutation,
       confirmRestart,
-    ],
+    ]
   );
 
   const handleRefresh = () => {
@@ -484,7 +516,11 @@ const ApplicationList = () => {
         searchValue={q}
         onSearch={(value) => syncSearchParams({ q: value })}
         onRefresh={handleRefresh}
-        emptyTitle={q || statusFilter !== 'all' ? 'No matching applications' : 'No applications'}
+        emptyTitle={
+          q || statusFilter !== 'all'
+            ? 'No matching applications'
+            : 'No applications'
+        }
         emptyDescription={
           q || statusFilter !== 'all'
             ? 'Try a different search or clear filters.'
