@@ -11,6 +11,8 @@ export type {
   BackendHealthStatus,
 } from './useBackendHealth';
 
+export { useClaudeAutomationSocket } from './useClaudeAutomationSocket';
+
 export { useTableQuery } from './useTableQuery';
 export type {
   UseTableQueryOptions,

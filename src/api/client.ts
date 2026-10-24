@@ -1,7 +1,8 @@
 import axios, { type AxiosError, type InternalAxiosRequestConfig } from 'axios';
 import { getMessage } from '@/utils/antdApp';
 
-export const API_BASE_URL = 'http://127.0.0.1:9527';
+export const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? 'http://127.0.0.1:9527').replace(/\/$/, '');
+export const AUTOMATION_TOKEN = import.meta.env.VITE_AUTOMATION_TOKEN ?? '';
 
 /**
  * Makes `{ silent: true }` a first-class request option so callers can opt out
