@@ -2,6 +2,8 @@ import { createElement } from 'react';
 import Layout from '@/layout';
 import { createBrowserRouter, Navigate, type RouteObject } from 'react-router';
 import cardRoutes from './card';
+import betaRoutes from './modules/beta';
+import claudeAutomationRoutes from './modules/claudeAutomation';
 import dashboardRoutes from './modules/dashboard';
 import configurationRoutes from './modules/configurations';
 import logRoutes from './modules/logs';
@@ -11,7 +13,6 @@ import workspaceRoutes from './modules/workspace';
 import settingsRoutes from './modules/settings';
 import RouteError from '@/components/RouteError';
 import NotFound from '@/components/NotFound';
-
 import type { Route } from '@/router/types';
 
 /**
@@ -31,6 +32,8 @@ export const layoutRoute: Route = {
     workspaceRoutes,
     cardRoutes,
     settingsRoutes,
+    claudeAutomationRoutes,
+    betaRoutes,
     {
       path: '*',
       name: 'NotFound',
